@@ -1,0 +1,7 @@
+weights:
+  token: 0.5
+  substr: 0.1
+  phonetic: 0.1
+  ratio: 0.3
+
+threshold: 75
