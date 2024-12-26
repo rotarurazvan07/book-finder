@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Books</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script>
+        window.onload = function() {
+            // Extract prices from table and calculate min and max
+            const prices = Array.from(document.querySelectorAll('tbody tr td:nth-child(3)'))
+                                .map(td => parseFloat(td.textContent));
+
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+
+            // Set the min and max values of the slider
+            const priceSlider = document.getElementById('price-slider');
+            priceSlider.min = minPrice;
+            priceSlider.max = maxPrice;
+            priceSlider.value = maxPrice;
+
+            // Display the current range
+            document.getElementById('price-range').innerText = `RON${minPrice} - RON${maxPrice}`;
+
+            // Add event listener to update the table when slider changes
+            priceSlider.addEventListener('input', function() {
+                filterByPrice(minPrice, maxPrice, priceSlider.value);
+            });
+
+            // Populate categories in dropdown
+            populateCategories();
+
+            // Add event listener to the category dropdown
+            const categoryDropdown = document.getElementById('category-dropdown');
+            categoryDropdown.addEventListener('change', function() {
+                filterByCategory(categoryDropdown.value);
+            });
+        }
+
+        function populateCategories() {
+            const categorySet = new Set();
+            const rows = document.querySelectorAll('tbody tr');
+
+            rows.forEach(row => {
+                const category = row.dataset.category; // Fetch category from data attribute
+                if (category) {
+                    categorySet.add(category);
+                }
+            });
+
+            const dropdown = document.getElementById('category-dropdown');
+            categorySet.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                dropdown.appendChild(option);
+            });
+        }
+
+        function filterByPrice(minPrice, maxPrice, selectedMaxPrice) {
+            // Filter rows based on price
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const price = parseFloat(row.querySelector('td:nth-child(3)').textContent);
+                if (price <= selectedMaxPrice) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update the displayed range
+            document.getElementById('price-range').innerText = `RON${minPrice} - RON${selectedMaxPrice}`;
+        }
+
+        function filterByCategory(selectedCategory) {
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const category = row.dataset.category; // Fetch category from data attribute
+                if (selectedCategory === "All" || category === selectedCategory) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>{{ bookstore }}</h1>
+
+    <!-- Filters -->
+    <div class="filter-form">
+        <label for="price-slider">Price Range:</label>
+        <input type="range" id="price-slider" step="1">
+        <div id="price-range" class="price-range-label"></div>
+
+        <label for="category-dropdown">Category:</label>
+        <select id="category-dropdown">
+            <option value="All">All</option>
+        </select>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Author</th>
+                <th>Price</th>
+                <th>Rating</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for book in books %}
+                <tr data-category="{{ book.category }}">
+                    <td><a href="{{ book.url }}">{{ book.title }}</a></td>
+                    <td>{{ book.author }}</td>
+                    <td>{{ book.price }}</td>
+                    <td><a href="{{ book.goodreads_url }}">{{ book.rating | round(2) }}</a></td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
