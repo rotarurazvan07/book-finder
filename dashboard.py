@@ -116,7 +116,7 @@ class BookDashboard:
             timestamp = f"Last updated: {datetime.now().strftime('%H:%M:%S')}"
 
             if df.empty:
-                return dbc.Alert("No data found."), [], [], timestamp, 0, 1000, {}, 0, 5
+                return dbc.Alert("No data found."), [], [], timestamp, 0, 1000, {}
 
             f_df = df.copy()
 
@@ -198,4 +198,4 @@ if __name__ == "__main__":
     # Ensure your DatabaseManager is correctly initialized here
     db_manager = DatabaseManager()
     dashboard = BookDashboard(db_manager)
-    dashboard.run(debug=True, port=8050)
+    dashboard.run(debug=False, port=8051)
