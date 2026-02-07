@@ -5,13 +5,7 @@ from .utils import log
 from .SettingsManager import settings_manager
 
 class DatabaseManager:
-    def __init__(self, db_path: str = None):
-        settings_manager.load_settings("config")
-        cfg = settings_manager.get_config('database_config')
-
-        if db_path is None:
-            db_path = cfg.get('db_path', 'data/books.db')
-
+    def __init__(self, db_path: str):
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.execute('PRAGMA journal_mode=WAL')
         self.conn.row_factory = sqlite3.Row

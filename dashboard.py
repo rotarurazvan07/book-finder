@@ -7,6 +7,7 @@ import numpy as np
 
 # Assuming DatabaseManager is in your project
 from book_framework.DatabaseManager import DatabaseManager
+from book_framework.SettingsManager import settings_manager
 
 class BookDashboard:
     def __init__(self, db_manager):
@@ -195,7 +196,7 @@ class BookDashboard:
         self.app.run(debug=debug, host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    # Ensure your DatabaseManager is correctly initialized here
-    db_manager = DatabaseManager()
+    settings_manager.load_settings("config")
+    db_manager = DatabaseManager(settings_manager.get_config('database_config')["dash-db-path"])
     dashboard = BookDashboard(db_manager)
     dashboard.run(debug=False, port=8051)

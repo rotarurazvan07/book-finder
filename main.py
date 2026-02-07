@@ -30,7 +30,7 @@ def addRating(rowid, rating, goodreads_url):
 
 if __name__ == "__main__":
     settings_manager.load_settings("config")
-    db_manager = DatabaseManager()
+    db_manager = DatabaseManager(settings_manager.get_config('database_config')["work-db-path"])
 
     db_manager.reset_db()
 
