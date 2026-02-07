@@ -2,7 +2,6 @@ import sqlite3
 import pandas as pd
 from .core.Book import Book
 from .utils import log
-from .SettingsManager import settings_manager
 
 class DatabaseManager:
     def __init__(self, db_path: str):
@@ -73,5 +72,11 @@ class DatabaseManager:
         self.conn.commit()
         log("Database cleared for new daily scrape.")
 
-    def close(self):
+def close(self):
+        self.conn.commit()
+        # 1. Flush the logs into the main file
+        self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        # 2. Transition back to a single-file mode (deletes the -wal file)
+        self.conn.execute("PRAGMA journal_mode=DELETE;")
+        # 3. Clean up the connection
         self.conn.close()

@@ -1,3 +1,6 @@
+import argparse
+import sys
+
 import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output, dash_table, State, ctx
@@ -196,7 +199,11 @@ class BookDashboard:
         self.app.run(debug=debug, host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    settings_manager.load_settings("config")
-    db_manager = DatabaseManager(settings_manager.get_config('database_config')["dash-db-path"])
+    parser = argparse.ArgumentParser(description="Run the Book Finder Scraper")
+    parser.add_argument("db_path", help="Path to the SQLite database file (e.g., books.db)")
+    args = parser.parse_args()
+
+    db_manager = DatabaseManager(args.db_path)
+
     dashboard = BookDashboard(db_manager)
     dashboard.run(debug=False, port=8051)
