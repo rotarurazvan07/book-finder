@@ -11,7 +11,7 @@ from book_framework.utils import log
 
 ANTICARIAT_UNU_BASE_URL = "https://www.anticariat-unu.ro/"
 ANTICARIAT_UNU_NAME = "Anticariat Unu"
-ANTICARIAT_UNU_PAGE_QUERY = "carti-c1/%s" # %s start from 0 and increments 30 by 30
+ANTICARIAT_UNU_PAGE_QUERY = "/%s" # %s start from 0 and increments 30 by 30
 
 NUM_THREADS = os.cpu_count()
 
@@ -19,111 +19,78 @@ class AnticariatUnu(BaseBookstore):
     def __init__(self, add_book_callback):
         super().__init__(add_book_callback)
         self._scanned_pages = 0
-
-    @property
-    def category_map(self) -> dict:
-        return {
-            # --- LITERATURE ---
-            "Autori romani": BookCategory.LITERATURE,
-            "Literatura universala / Autori Straini": BookCategory.LITERATURE,
-            "Critica literara / Lingvistica / Gramatica limbii romane / Istoria literaturii": BookCategory.LITERATURE,
-            "Carti cu dedicatie, semnate": BookCategory.LITERATURE,
-            "Limbi Straine ( gramatica, dictionare, cursuri etc.)": BookCategory.LITERATURE,
-
-            # --- HISTORY ---
-            "Istorie": BookCategory.HISTORY,
-            "Bibliofilie": BookCategory.HISTORY,
-            "Editii princeps": BookCategory.HISTORY,
-            "Manuscrise / Scrisori / Documente": BookCategory.HISTORY,
-            "Carte veche": BookCategory.HISTORY,
-            "Ziare / Reviste / Publicatii vechi": BookCategory.HISTORY,
-            "Manuale vechi": BookCategory.HISTORY,
-            "Etnografie & Folclor": BookCategory.HISTORY,
-            "Geografie / Turism / Geologie / Astronomie": BookCategory.HISTORY,
-
-            # --- ARTS ---
-            "Arta": BookCategory.ARTS,
-            "Arhitectura": BookCategory.ARTS,
-            "Teatru & Film": BookCategory.ARTS,
-            "Carti Muzica": BookCategory.ARTS,
-
-            # --- SPIRITUALITY ---
-            "Religie": BookCategory.SPIRITUALITY,
-            "Filosofie / Logica": BookCategory.SPIRITUALITY,
-            "Pseudostiinte (Ocultism, Ezoterism etc.)": BookCategory.SPIRITUALITY,
-
-            # --- SCIENCE ---
-            "Medicina alopata si alternativa": BookCategory.SCIENCE,
-            "Stiinte juridice": BookCategory.SCIENCE,
-            "Enciclopedii & Carti de stiinta": BookCategory.SCIENCE,
-            "Biologie / Botanica / Zoologie": BookCategory.SCIENCE,
-            "Chimie": BookCategory.SCIENCE,
-            "Matematica / Fizica": BookCategory.SCIENCE,
-            "Carti Tehnice": BookCategory.SCIENCE,
-
-            # --- BUSINESS ---
-            "Stiinte economice / Management si Marketing": BookCategory.BUSINESS,
-
-            # --- PERSONAL DEVELOPMENT ---
-            "Psihologie": BookCategory.PERSONAL_DEVELOPMENT,
-            "Sociologie / Media / Jurnalism / Advertising": BookCategory.PERSONAL_DEVELOPMENT,
-            "Pedagogie": BookCategory.PERSONAL_DEVELOPMENT,
-
-            # --- KIDS & YA ---
-            "Carti pentru copii/ Literatura populara / Benzi desenate": BookCategory.KIDS_YA,
-
-            # --- HOBBIES ---
-            "Gastronomie": BookCategory.HOBBIES,
-            "Diverse (Broderie, Tricotaj, Fotografie, etc.)": BookCategory.HOBBIES,
-            "Educatie fizica & Sport": BookCategory.HOBBIES,
-            "Pescuit & Vanatoare": BookCategory.HOBBIES,
-
-            # --- OTHER / NONE ---
-            "Diverse": BookCategory.OTHER
+        self.cats = {
+            BookCategory.LITERATURE: ["https://www.anticariat-unu.ro/autori-romani-c21",
+                                      "https://www.anticariat-unu.ro/literatura-universala-autori-straini-c14",
+                                     ],
+            BookCategory.HISTORY: ["https://www.anticariat-unu.ro/istorie-c3",
+                                   "https://www.anticariat-unu.ro/manuscrise-scrisori-documente-c58",
+                                   "https://www.anticariat-unu.ro/ziare-reviste-publicatii-vechi-c52",
+                                   "https://www.anticariat-unu.ro/manuale-vechi-c51",
+                                   "https://www.anticariat-unu.ro/etnografie-folclor-c22",
+                                   "https://www.anticariat-unu.ro/geografie-turism-geologie-astronomie-c19",
+                                   ],
+            BookCategory.ARTS: ["https://www.anticariat-unu.ro/arta-c4",
+                                "https://www.anticariat-unu.ro/arhitectura-c13",
+                                "https://www.anticariat-unu.ro/teatru-film-c16",
+                                "https://www.anticariat-unu.ro/carti-muzica-c15",
+                                ],
+            BookCategory.SPIRITUALITY: ["https://www.anticariat-unu.ro/religie-c34",
+                                        "https://www.anticariat-unu.ro/filosofie-logica-c17",
+                                        "https://www.anticariat-unu.ro/pseudostiinte-ocultism-ezoterism-etc-c41",
+                                        ],
+            BookCategory.SCIENCE: ["https://www.anticariat-unu.ro/medicina-alopata-si-alternativa-c24",
+                                   "https://www.anticariat-unu.ro/stiinte-juridice-c30",
+                                   "https://www.anticariat-unu.ro/enciclopedii-carti-de-stiinta-c6",
+                                   "https://www.anticariat-unu.ro/biologie-botanica-zoologie-c36",
+                                   "https://www.anticariat-unu.ro/chimie-c39",
+                                   "https://www.anticariat-unu.ro/matematica-fizica-c40",
+                                   "https://www.anticariat-unu.ro/carti-tehnice-c29",
+                                   ],
+            BookCategory.BUSINESS: ["https://www.anticariat-unu.ro/stiinte-economice-management-si-marketing-c28"],
+            BookCategory.PERSONAL_DEVELOPMENT: ["https://www.anticariat-unu.ro/psihologie-c18",
+                                                "https://www.anticariat-unu.ro/sociologie-media-jurnalism-advertising-c31",
+                                                "https://www.anticariat-unu.ro/pedagogie-c32"],
+            BookCategory.KIDS_YA: ["https://www.anticariat-unu.ro/carti-pentru-copii-literatura-populara-benzi-desenate-c45"],
+            BookCategory.HOBBIES: ["https://www.anticariat-unu.ro/gastronomie-c25",
+                                   "https://www.anticariat-unu.ro/diverse-broderie-tricotaj-fotografie-etc-c37",
+                                   "https://www.anticariat-unu.ro/educatie-fizica-sport-c44",
+                                   "https://www.anticariat-unu.ro/pescuit-vanatoare-c42"],
         }
 
-    def get_books(self):
-        # Build urls to scrape
+    def get_all_urls(self):
         self.get_web_scraper(profile='fast')
-        html = self.web_scraper.fast_http_request(ANTICARIAT_UNU_BASE_URL + ANTICARIAT_UNU_PAGE_QUERY % 30)
-        soup = BeautifulSoup(html, 'html.parser')
-        max_pages = (int(soup.find("li", class_="last").find('a')["data-ci-pagination-page"]) - 2)
-        # go from back to start and find whats the last real page
-        low = 0
-        high = max_pages
-        last_valid_page = 0
+        urls = []
+        for url in [url for urls in self.cats.values() for url in urls]:
+            request_result = self.web_scraper.fast_http_request(url + ANTICARIAT_UNU_PAGE_QUERY % 0)
+            soup = BeautifulSoup(request_result, 'html.parser')
+            max_pages = (int(soup.find("li", class_="last").find('a')["data-ci-pagination-page"]) - 2)
+            low = 0
+            high = max_pages
+            last_valid_page = 0
+            while low <= high:
+                mid = (low + high) // 2
+                response_text = self.web_scraper.fast_http_request(url + (ANTICARIAT_UNU_PAGE_QUERY % (mid * 30)))
+                if not response_text:
+                    high = mid - 1
+                    continue
+                soup = BeautifulSoup(response_text, 'html.parser')
+                sold_count = len([s for s in soup.select('span.text-danger') if s.get_text(strip=True) == "VANDUT"])
+                if sold_count < 30:
+                    last_valid_page = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
 
-        while low <= high:
-            mid = (low + high) // 2
-            url = ANTICARIAT_UNU_BASE_URL + (ANTICARIAT_UNU_PAGE_QUERY % (mid * 30))
-
-            response_text = self.web_scraper.fast_http_request(url)
-            if not response_text:
-                # If request fails, treat as "sold" to be safe, or handle error
-                high = mid - 1
-                continue
-
-            soup = BeautifulSoup(response_text, 'html.parser')
-            sold_count = len([s for s in soup.select('span.text-danger') if s.get_text(strip=True) == "VANDUT"])
-
-            if sold_count < 30:
-                # This page has live books! The "last" page might be even further right.
-                last_valid_page = mid
-                low = mid + 1
-            else:
-                # This page is 100% sold out. Move left to find where inventory starts.
-                high = mid - 1
-
-        max_pages = last_valid_page
-        log(f"Max page index: {max_pages}")
+            max_pages = last_valid_page
+            for i in range(max_pages):
+                urls.append(url + (ANTICARIAT_UNU_PAGE_QUERY % (i * 30)))
         self.destroy_scraper_thread()
+        return urls
 
-        # Get all URLs
-        urls = [ANTICARIAT_UNU_BASE_URL + (ANTICARIAT_UNU_PAGE_QUERY % (i * 30)) for i in range(max_pages)]
-
-        # Create a shared scraper
+    def get_books(self, urls):
         self.get_web_scraper(profile='fast')
-        self.run_workers(urls, self._find_books_job, num_threads=NUM_THREADS)
+        self.run_workers(urls if urls is not None else self.get_all_urls(), self._find_books_job, num_threads=NUM_THREADS)
         self.destroy_scraper_thread()
 
         print(f"Finished scanning {self._scanned_pages} pages")
@@ -144,50 +111,32 @@ class AnticariatUnu(BaseBookstore):
                 request_result = self.web_scraper.fast_http_request(url)
                 try:
                     soup = BeautifulSoup(request_result, 'html.parser')
-                    hrefs = [a.get('href') for div in soup.find_all('section', class_="products-area") for a in div.find_all('a')]
-                    book_urls = set([href for href in hrefs if "javascript" not in href])
-                    for book_url in book_urls:
-                        request_result = self.web_scraper.fast_http_request(book_url)
+                    book_anchors = soup.find_all(class_="book")
+                    for book_anchor in book_anchors:
                         try:
-                            if "Stoc Epuizat" in request_result or "anunta-ma cand este disponibil produsul" in request_result:
-                                continue
-                            soup = BeautifulSoup(request_result, 'html.parser')
+                            title_author_tag = book_anchor.find("h3").find("a")
+                            book_url = title_author_tag['href']
+                            price_tag = book_anchor.find(class_="price")
+                            isbn_tag = None
+                            if not title_author_tag or not price_tag:
+                                continue # need at least title and price
 
-                            title_tag = soup.find('title')
-                            author_tag = soup.find('div', string="Autor:").find_next_sibling('div', class_='text') if soup.find('div', string="Autor:") else None
-                            price_tag = soup.find('span', class_='price').find('span')
-                            category_tag = soup.find('div', class_='breadcrumbs').find_all('li')[-1]
-                            if title_tag is None or price_tag is None:
-                                log("SKipped " + book_url)
-                                continue
+                            title_author = title_author_tag.get_text().strip()
+                            for separator in [" de ", " by ", " par ", "..."]:
+                                if separator in title_author:
+                                    title = title_author.rsplit(separator)[0]
+                                    author = title_author.rsplit(separator)[1].split(",")[0]
+                                    break
+                                title = title_author
+                                author = None
+                            isbn = isbn_tag.get_text() if isbn_tag else None
+                            price = float(price_tag.get_text().replace("Lei",'').strip())
 
-                            title = title_tag.get_text()
-                            title = title[:-4]
-                            title = title.replace(",", "")
-                            for separator in ["...", " de ", " by "]:
-                                if separator in title:
-                                    title = title.split(separator)[0]
-                            title = title.replace("  ", " ")
-                            title = title.strip()
-
-                            author = author_tag.get_text() if author_tag else None
-                            if author:
-                                if "colectiv" in author.lower():
-                                    author = None
-                                else:
-                                    for sep in ["...", " and ", " si ", ","]:
-                                        if sep in author:
-                                            author = author.split(sep)[0]
-                                    author = author.strip()
-
-                            price = float(price_tag.text.strip())
-                            category = self.map_category(category_tag.get_text().strip()) if category_tag else BookCategory.NONE
-                            isbn = None # doesn't exist on this bookstore
                             book = Book(
                                 title=title,
                                 author=author,
                                 isbn=isbn,
-                                category=category,
+                                category = next((cat for cat, urls in self.cats.items() if any(u in url for u in urls)), BookCategory.NONE),
                                 offers=[Offer(ANTICARIAT_UNU_NAME, book_url, price)]
                             )
                             self.add_book(book)

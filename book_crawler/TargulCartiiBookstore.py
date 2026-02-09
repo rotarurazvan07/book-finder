@@ -1,3 +1,4 @@
+import asyncio
 from time import sleep
 
 from bs4 import BeautifulSoup
@@ -9,49 +10,80 @@ from book_framework.utils import log
 
 TARGUL_CARTII_BASE_URL = "https://www.targulcartii.ro/"
 TARGUL_CARTII_NAME = "Targul Cartii"
-TARGUL_CARTII_PAGE_QUERY = "noutati?limit=40&page=%s"
+TARGUL_CARTII_PAGE_QUERY = "?limit=40&page=%s"
 
-NUM_THREADS = os.cpu_count()
+CONCURRENT_TAB = 1
+LOAD_WAIT = 2
 
 class TargulCartii(BaseBookstore):
     def __init__(self, add_book_callback):
         super().__init__(add_book_callback)
         self._scanned_pages = 0
-
-    @property
-    def category_map(self) -> dict:
-        return {
-            "Literatura": BookCategory.LITERATURE,
-            "Bibliofilie": BookCategory.LITERATURE,      # Rare/Collectable books are still Literature
-            "Carti pentru copii": BookCategory.KIDS_YA,
-            "Arta si Arhitectura": BookCategory.ARTS,
-            "Dictionare, Cultura, Educatie": BookCategory.SCIENCE, # Reference & Education fits Science/Academic
-            "Istorie si etnografie": BookCategory.HISTORY,
-            "Stiinta si tehnica": BookCategory.SCIENCE,
-            "Spiritualitate": BookCategory.SPIRITUALITY,
-            "Hobby si ghiduri": BookCategory.HOBBIES,
-            "Carti in limba straina": BookCategory.LITERATURE # Usually fiction, otherwise maps to LITERATURE as a catch-all
+        self.cats = {
+            BookCategory.LITERATURE: ["https://www.targulcartii.ro/literatura", "https://www.targulcartii.ro/carti-in-limba-straina"],
+            BookCategory.KIDS_YA: ["https://www.targulcartii.ro/carti-pentru-copii"],
+            BookCategory.ARTS: ["https://www.targulcartii.ro/arta-si-arhitectura"],
+            BookCategory.SCIENCE: ["https://www.targulcartii.ro/dictionare-cultura-educatie", "https://www.targulcartii.ro/stiinta-si-tehnica"],
+            BookCategory.HISTORY: ["https://www.targulcartii.ro/istorie-si-etnografie"],
+            BookCategory.SPIRITUALITY : ["https://www.targulcartii.ro/spiritualitate"],
+            BookCategory.HOBBIES: ["https://www.targulcartii.ro/hobby-si-ghiduri"]
         }
 
-    def get_books(self):
-        # Build urls to scrape
-        self.get_web_scraper(profile='slow')
-        max_pages = 1
-        request_result = self.web_scraper.fast_http_request(TARGUL_CARTII_BASE_URL + TARGUL_CARTII_PAGE_QUERY % "0")
-        if request_result is not None:
+    async def my_data_handler(self, url, html):
+        self._scanned_pages += 1
+        if "Pagina cautata nu exista pe acest site!" in html:
+            return
+        soup = BeautifulSoup(html, 'html.parser')
+        book_rows = soup.find(class_="product-grid").find_all(class_="product-list-row")
+        for book_row in book_rows:
+            try:
+                title_tag = book_row.find(class_="name").find("a")
+                book_url = book_row.find(class_="name").find("a").get('href')
+                author_tag = book_row.find(class_="name").find(class_="author_name")
+                isbn_tag = None
+                price_tag = book_row.find(class_="price_value")
+                if not title_tag or not price_tag:
+                    continue # need at least title and price
+
+                title = title_tag.get("title")
+                author = author_tag.get_text() if author_tag else None
+                isbn = isbn_tag.get_text() if isbn_tag else None
+                price = float(price_tag.get_text().replace("LEI",'').strip())
+
+                book = Book(
+                    title=title,
+                    author=author,
+                    isbn=isbn,
+                    category = next((cat for cat, urls in self.cats.items() if any(u in url for u in urls)), BookCategory.NONE),
+                    offers=[Offer(TARGUL_CARTII_NAME, book_url, price)]
+                )
+                self.add_book(book)
+            except Exception as e:
+                log(f"Caught {e}")
+
+    def get_all_urls(self):
+        self.get_web_scraper(profile='fast')
+        urls = []
+        for url in [url for urls in self.cats.values() for url in urls]:
+            request_result = self.web_scraper.load_page(url + TARGUL_CARTII_PAGE_QUERY % 1)
             soup = BeautifulSoup(request_result, 'html.parser')
             max_pages = int(soup.find("span", class_="pagination_total_pages").get_text())
+            for i in range(max_pages):
+                urls.append(url + TARGUL_CARTII_PAGE_QUERY % (i+1))
         self.destroy_scraper_thread()
 
+        return urls
+
+    def get_books(self, urls):
+        self.get_web_scraper(profile='slow')
         # Get all URLs
-        urls = []
-        for current_page in range(1, max_pages):
-            urls.append(TARGUL_CARTII_BASE_URL + TARGUL_CARTII_PAGE_QUERY % current_page)
-
-        # Create a shared scraper
-        self.get_web_scraper(profile='fast')
-        self.run_workers(urls, self._find_books_job, num_threads=NUM_THREADS)
-        self.destroy_scraper_thread()
+        asyncio.run(self.web_scraper.async_scrape(
+            urls=urls if urls is not None else self.get_all_urls(),
+            load_callback=self.my_data_handler,
+            max_concurrent=CONCURRENT_TAB,
+            additional_wait=LOAD_WAIT,
+            wait_for_selector=".content-loaded"
+        ))
 
         print(f"Finished scanning {self._scanned_pages} pages")
 
@@ -62,52 +94,3 @@ class TargulCartii(BaseBookstore):
             progress = (self._scanned_pages / total * 100) if total > 0 else 0
             print(f"Progress: {self._scanned_pages}/{total} ({progress:.1f}%)")
             time.sleep(2)
-
-    def _find_books_job(self, urls, thread_id):
-        try:
-            for url in urls:
-                self._scanned_pages += 1
-
-                request_result = self.web_scraper.load_page(url)
-                try:
-                    html = BeautifulSoup(request_result, 'html.parser')
-                    book_urls = set([a.get('href') for div in html.find_all('div', class_="product-list-preview-btn") for a in div.find_all('a')])
-                    for book_url in book_urls:
-                        request_result = self.web_scraper.load_page(book_url)
-                        try:
-                            if "STOC EPUIZAT!" in request_result:
-                                continue
-
-                            soup = BeautifulSoup(request_result, 'html.parser')
-
-                            # TODO better anchors
-                            title_tag = soup.find(class_="titlu_carte")
-                            author_tag = soup.find("span", itemprop="author")
-                            isbn_tag = (tag := soup.find(string=lambda x: "ISBN" in x if x else False)) and (p := tag.find_parent('div')) and p.find_next_sibling('div')
-                            price_tag = soup.find("span", class_="price-new")
-                            category_tag = soup.find('div', class_='product-info').find_all('a')[1] if soup.find('div', class_='product-info') else None
-                            if title_tag is None or price_tag is None:
-                                log("SKipped " + book_url)
-                                continue
-
-                            title = title_tag.get_text().strip()
-                            author = author_tag.get_text() if author_tag else None
-                            isbn = isbn_tag.get_text().strip().replace("-", "") if isbn_tag else None
-                            raw_p = price_tag.get_text().replace('LEI', '').replace(',', '.').strip()
-                            price = float(raw_p.replace('.', '', 1) if raw_p.count('.') > 1 else raw_p)
-                            category = self.map_category(category_tag.get_text().strip()) if category_tag else BookCategory.NONE
-
-                            book = Book(
-                                title=title,
-                                author=author,
-                                isbn=isbn,
-                                category=category,
-                                offers=[Offer(TARGUL_CARTII_NAME, book_url, price)]
-                            )
-                            self.add_book(book)
-                        except Exception as e:
-                            log(f"Caught {e}")
-                except Exception as e:
-                    log(f"Caught {e}")
-        finally:
-            self.destroy_scraper_thread()

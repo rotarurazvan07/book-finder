@@ -29,9 +29,9 @@ class Offer:
 @dataclass
 class Book:
     title: str
-    author: str
-    isbn: str
-    category: 'BookCategory'
+    author: str = None
+    isbn: str = None
+    category: 'BookCategory' = None
     offers: List['Offer'] = field(default_factory=list)
     rating: Optional[float] = None
     goodreads_url: Optional[str] = None

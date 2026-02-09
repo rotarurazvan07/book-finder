@@ -1,52 +1,23 @@
 
+import os
 import re
 from bs4 import BeautifulSoup
 from book_framework.utils import log
 from book_framework.WebScraper import WebScraper
 from book_framework.SimilarityEngine import SimilarityEngine
-import threading
-from math import ceil
-
+from concurrent.futures import ThreadPoolExecutor
+# TODO IMPORTANT, TRACK WHAT YOU SAVE SEPARATELY, THIS WILL SAVE A LOT IF CACHING RATINGS, BOOKS WILL REPEAT OVER TIME
 GOODREADS_URL = "https://www.goodreads.com/"
 GOODREADS_SEARCH = GOODREADS_URL + "search?q=%s"
 
 NOT_FOUND_INDICATOR = "looking for a book?"
 REJECTED_GOODREADS_TITLES = ["summary"]
 
-def rateBooks(books_df, callback, num_threads=5):
-    # 1. Use standard slicing (works on DataFrames)
-    total_rows = len(books_df)
-    chunk_size = ceil(total_rows / num_threads)
-    similarity_engine = SimilarityEngine()
-
-    threads = []
-
-    def thread_worker(df_chunk):
-        web_scraper = WebScraper()
-        for book in df_chunk.itertuples(index=False):
-            rating, goodreads_url = getRating(book, web_scraper, similarity_engine)
-            callback(book.rowid, rating, goodreads_url)
-        web_scraper.destroy_current_thread()
-
-    # 3. Create chunks and start threads
-    for i in range(0, total_rows, chunk_size):
-        chunk = books_df.iloc[i : i + chunk_size] # Use .iloc for safe DF slicing
-
-        t = threading.Thread(target=thread_worker, args=(chunk,))
-        threads.append(t)
-        t.start()
-
-    for t in threads:
-        t.join()
-
-    del similarity_engine
-
-def getRating(book, web_scraper, similarity_engine):
+def getRating(book, similarity_engine, web_scraper):
     rating = None
 
-    # Use dot notation for NamedTuples
     title = book.title
-    author = getattr(book, 'author', None) # Safely get if column might be missing
+    author = getattr(book, 'author', None)
     isbn = getattr(book, 'isbn', None)
 
     log(f"Finding rating for {title}")
@@ -108,5 +79,24 @@ def getRating(book, web_scraper, similarity_engine):
                             return float(rating) * float(ratings_count), GOODREADS_URL + book_elem.find('a')['href']
         except Exception as e:
             log(f"Caught {e}")
+
     log(f"Couldn't find rating on goodreads for {title}")
     return None, None
+
+def rateBooks(books, update_rating_callback):
+    similarity_engine = SimilarityEngine()
+    web_scraper = WebScraper()
+    max_workers = os.cpu_count() or 1
+
+    def _thread_worker(book):
+        try:
+            rating, gr_url = getRating(book, similarity_engine, web_scraper)
+            update_rating_callback(rowid=book.rowid, rating=rating, goodreads_url=gr_url)
+        except Exception as e:
+            print(f"❌ Error on row {book.rowid}: {e}")
+
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            executor.map(_thread_worker, books)
+    finally:
+        web_scraper.destroy_current_thread()

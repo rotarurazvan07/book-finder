@@ -18,21 +18,8 @@ class BaseBookstore(ABC):
         self._stop_logging = False
         self.web_scraper: Optional[WebScraper] = None
 
-    @property
     @abstractmethod
-    def category_map(self) -> dict:
-        """Each scraper MUST define this dictionary."""
-        pass
-
-    def map_category(self, category_string: str) -> BookCategory:
-        """Generic method used by all scrapers."""
-        if not category_string:
-            return BookCategory.NONE
-
-        return self.category_map.get(category_string, BookCategory.NONE)
-
-    @abstractmethod
-    def get_books(self):
+    def get_books(self, category):
         raise NotImplementedError()
 
     def add_book(self, book) -> bool:
