@@ -1,14 +1,17 @@
 import argparse
+from collections import defaultdict
 from contextlib import redirect_stdout
 import json
 import math
 import base64
 import os
+import random
 import sqlite3
 import sys
 import threading
 import time
 from types import SimpleNamespace
+from urllib.parse import urlparse
 from book_framework.DatabaseManager import DatabaseManager, merge_databases
 from book_framework.SettingsManager import settings_manager
 from book_crawler.TargulCartiiBookstore import TargulCartii
@@ -19,7 +22,18 @@ from book_framework.core.Book import Book, BookCategory
 from book_framework.core.Goodreads import rateBooks
 from book_framework.utils import log
 
-MAX_GITHUB_RUNNERS = 200
+STORES = [
+    TargulCartii,
+    AnticariatUnu
+]
+
+MAX_GITHUB_RUNNERS = 100
+
+def get_class_by_url(url):
+    if "targulcartii".lower() in url.lower():
+        return TargulCartii
+    if "anticariat-unu".lower() in url.lower():
+        return AnticariatUnu
 
 def addRating(rowid, rating, goodreads_url):
     if rating is not None and goodreads_url is not None:
@@ -46,46 +60,49 @@ if __name__ == "__main__":
     settings_manager.load_settings("config")
 
     if args.mode == "prepare-scrape":
-        if not args.store:
-            parser.error("requires --store")
-            sys.exit(1)
-
-        store = getattr(sys.modules[__name__], args.store)(None)
-
+        urls = []
         with open(os.devnull, 'w') as f:
             with redirect_stdout(f):
-                urls = store.get_all_urls()
+                for store in STORES:
+                    st = store(None)
+                    urls.append(st.get_all_urls())
+                    del st
+        urls = [item for sublist in urls for item in sublist]
+        random.shuffle(urls)
 
         CHUNK_SIZE = max(20, math.ceil(len(urls) / MAX_GITHUB_RUNNERS))
 
         all_tasks = []
-
         for i in range(0, len(urls), CHUNK_SIZE):
             chunk = urls[i : i + CHUNK_SIZE]
             all_tasks.append({
-                "db_path": f"{args.store}{i // CHUNK_SIZE + 1}.db",
-                "store": args.store,
+                "db_path": f"chunk-{i // CHUNK_SIZE + 1}.db",
                 "urls": ",".join(chunk)
             })
-
         print(json.dumps(all_tasks))
     elif args.mode == "scrape":
-        if not args.urls or not args.db_path or not args.store:
-            parser.error("requires --urls and --db_path and --store")
+        if not args.urls or not args.db_path:
+            parser.error("requires --urls and --db_path")
             sys.exit(1)
+
+        urls = [u.strip() for u in args.urls.split(',')]
+        groups = defaultdict(list)
+        for url in urls:
+            domain = urlparse(url).netloc
+            core_name = domain.split('.')[-2] if len(domain.split('.')) > 1 else domain
+            groups[core_name].append(url)
+        list_of_lists = list(groups.values())
 
         db_manager = DatabaseManager(args.db_path)
         db_manager.reset_db()
         def _add_book_callback(book):
             db_manager.add_book(book)
 
-        store = getattr(sys.modules[__name__], args.store)(_add_book_callback)
-
-        print(f"🚀 Scraping into {args.db_path} for {args.store}...")
-
-        url_list = [u.strip() for u in args.urls.split(",") if u.strip()]
-        start = time.perf_counter()
-        store.get_books(urls=url_list)
+        for i, group in enumerate(list_of_lists):
+            print(f"Group {i+1} ({urlparse(group[0]).netloc}):")
+            store = get_class_by_url(group[0])(_add_book_callback)
+            store.get_books(group)
+            del store
 
         db_manager.close()
 
@@ -190,7 +207,7 @@ if __name__ == "__main__":
 
         print(f"📂 Found {len(chunk_files)} rating chunks in {args.chunks_dir}")
 
-        main_conn = sqlite3.connect(main_db_filename)
+        main_conn = sqlite3.connect(main_db_abs)
         cursor = main_conn.cursor()
 
         for cf in chunk_files:

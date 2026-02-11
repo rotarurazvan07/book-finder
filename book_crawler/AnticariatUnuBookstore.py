@@ -13,7 +13,7 @@ ANTICARIAT_UNU_BASE_URL = "https://www.anticariat-unu.ro/"
 ANTICARIAT_UNU_NAME = "Anticariat Unu"
 ANTICARIAT_UNU_PAGE_QUERY = "/%s" # %s start from 0 and increments 30 by 30
 
-NUM_THREADS = os.cpu_count()
+NUM_THREADS = 1
 
 class AnticariatUnu(BaseBookstore):
     def __init__(self, add_book_callback):

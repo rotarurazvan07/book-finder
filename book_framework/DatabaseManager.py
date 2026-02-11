@@ -140,9 +140,13 @@ class DatabaseManager:
         except Exception as e:
             log(f"Database Error: {e}")
 
+
     def fetch_all_as_dataframe(self) -> pd.DataFrame:
-        """Standard fetch. Data is already flat, so no processing needed."""
-        return pd.read_sql_query("SELECT rowid, * FROM books", self.conn)
+        df = pd.read_sql_query("SELECT rowid, * FROM books", self.conn)
+        df['category'] = df['category'].fillna("").str.split(r'\s*,\s*')
+        df['category'] = df['category'].apply(lambda x: [i for i in x if i])
+
+        return df
 
     def update_rating_callback(self, rowid, rating, goodreads_url):
         if rating is not None and goodreads_url is not None:

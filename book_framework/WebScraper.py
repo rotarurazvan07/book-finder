@@ -623,12 +623,12 @@ class WebScraper:
                 if method.upper() == 'GET':
                     response = curl_requests.get(
                         url, headers=headers, cookies=cookies_dict,
-                        impersonate=impersonate, timeout=30, allow_redirects=True
+                        impersonate=impersonate, timeout=self.TIMEOUT, allow_redirects=True
                     )
                 else:
                     response = curl_requests.post(
                         url, headers=headers, cookies=cookies_dict, data=data,
-                        impersonate=impersonate, timeout=30, allow_redirects=True
+                        impersonate=impersonate, timeout=self.TIMEOUT, allow_redirects=True
                     )
 
                 # Check status
