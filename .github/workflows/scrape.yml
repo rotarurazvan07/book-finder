@@ -2,12 +2,11 @@ name: Book Scraper
 
 on:
   schedule:
-    - cron: '0 2 * * 6'
+    - cron: '0 0 * * 6'
   workflow_dispatch:
 
 jobs:
-# --- STORE 1: Targul Cartii ---
-  targul_cartii_prepare:
+  prepare:
     runs-on: ubuntu-22.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -24,15 +23,15 @@ jobs:
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(python main.py --mode "prepare-scrape" --store "TargulCartii")
+          JSON_DATA=$(python main.py --mode "prepare-scrape")
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
-  targul_cartii_scrape:
-    needs: targul_cartii_prepare
+  scrape:
+    needs: prepare
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.targul_cartii_prepare.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -44,70 +43,23 @@ jobs:
           sudo apt-get update || true
           playwright install-deps
       - name: Run Scraper
-        run: python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --store "TargulCartii" --urls "${{ matrix.urls }}"
+        run: python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: db-chunk-${{ matrix.db_path }}
-          path: ${{ matrix.db_path }}
-          retention-days: 7
-
-  # --- STORE 2: Anticariat Unu ---
-  anticariat_unu_prepare:
-    needs: targul_cartii_scrape
-    runs-on: ubuntu-22.04
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
-          pip install -r requirements.txt
-          playwright install chromium
-          sudo apt-get update || true
-          playwright install-deps
-      - name: Generate Matrix
-        id: set-matrix
-        run: |
-          JSON_DATA=$(python main.py --mode "prepare-scrape" --store "AnticariatUnu")
-          echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
-
-  anticariat_unu_scrape:
-    needs: anticariat_unu_prepare
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.anticariat_unu_prepare.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
-          pip install -r requirements.txt
-          playwright install chromium
-          sudo apt-get update || true
-          playwright install-deps
-      - name: Run Scraper
-        run: python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --store "AnticariatUnu" --urls "${{ matrix.urls }}"
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: db-chunk-${{ matrix.db_path }}
+          name: db-${{ matrix.db_path }}
           path: ${{ matrix.db_path }}
           retention-days: 7
 
   merge:
-    needs: [targul_cartii_scrape, anticariat_unu_scrape]
+    needs: scrape
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Download all chunks
         uses: actions/download-artifact@v4
         with:
-          pattern: db-chunk-*
+          pattern: db-*
           merge-multiple: true
       - name: Set up Python
         uses: actions/setup-python@v5

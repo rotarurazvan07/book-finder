@@ -130,14 +130,15 @@ class BookDashboard:
                            f_df['author'].str.contains(search, case=False, na=False)]
 
             if selected_cats:
-                f_df = f_df[f_df['category'].isin(selected_cats)]
+                f_df = f_df[f_df['category'].apply(
+                    lambda x: any(cat in x for cat in selected_cats) if isinstance(x, list) else False
+                )]
 
             if selected_stores:
                 f_df = f_df[f_df['store'].isin(selected_stores)]
 
             if min_rating is not None and min_rating > 0:
                 f_df = f_df[f_df['rating'] >= min_rating]
-
 
             p_min_db = float(f_df['price'].min()) if not f_df.empty else 0
             p_max_db = float(f_df['price'].max()) if not f_df.empty else 1000
@@ -146,17 +147,17 @@ class BookDashboard:
                 p_marks[2] = "2"
             if p_min_db <= 100 <= p_max_db:
                 p_marks[100] = "100"
+
             if isinstance(price_range, list) and len(price_range) == 2:
                 f_df = f_df[(f_df['price'] >= price_range[0]) & (f_df['price'] <= price_range[1])]
 
-            # 4. Data Preparation
             f_df['price'] = f_df['price'].round(2)
             f_df['rating'] = f_df['rating'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
-
+            f_df['cat_display'] = f_df['category'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
             f_df['store_md'] = f_df['url'].apply(lambda x: f"[Buy]({x})")
             f_df['gr_md'] = f_df['goodreads_url'].apply(lambda x: f"[GR]({x})" if x and str(x) != 'None' else "N/A")
 
-            cat_opts = [{"label": str(c), "value": c} for c in sorted(df['category'].dropna().unique())]
+            cat_opts = [{"label": str(c), "value": c} for c in sorted(df['category'].explode().dropna().unique())]
             store_opts = [{"label": str(s), "value": s} for s in sorted(df['store'].dropna().unique())]
 
             # 5. Table Rendering
@@ -165,6 +166,7 @@ class BookDashboard:
                 columns=[
                     {"name": "Title", "id": "title"},
                     {"name": "Author", "id": "author"},
+                    {"name": "Category", "id": "cat_display"},
                     {"name": "⭐", "id": "rating", "type": "numeric"},
                     {"name": "Price", "id": "price", "type": "numeric", "format": {"specifier": ".2f"}},
                     {"name": "Store", "id": "store"},
@@ -179,8 +181,9 @@ class BookDashboard:
                     'overflow': 'hidden', 'textOverflow': 'ellipsis', 'whiteSpace': 'nowrap'
                 },
                 style_cell_conditional=[
-                    {'if': {'column_id': 'title'}, 'width': '35%'},
-                    {'if': {'column_id': 'author'}, 'width': '20%'},
+                    {'if': {'column_id': 'title'}, 'width': '25%'},
+                    {'if': {'column_id': 'author'}, 'width': '15%'},
+                    {'if': {'column_id': 'cat_display'}, 'width': '15%'},
                     {'if': {'column_id': 'rating'}, 'width': '8%', 'textAlign': 'center'},
                     {'if': {'column_id': 'price'}, 'width': '8%', 'textAlign': 'center'},
                     {'if': {'column_id': 'store'}, 'width': '10%'},
@@ -191,7 +194,6 @@ class BookDashboard:
                 style_data_conditional=[{'if': {'row_index': 'odd'}, 'backgroundColor': '#f8f9fa'}]
             )
 
-            # (Remember to return the 9 outputs)
             return table, cat_opts, store_opts, timestamp, p_min_db, p_max_db, p_marks
 
     def run(self, debug=True, port=8050):

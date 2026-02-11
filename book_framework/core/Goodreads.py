@@ -86,7 +86,7 @@ def getRating(book, similarity_engine, web_scraper):
 def rateBooks(books, update_rating_callback):
     similarity_engine = SimilarityEngine()
     web_scraper = WebScraper()
-    max_workers = os.cpu_count() or 1
+    max_workers = 2
 
     def _thread_worker(book):
         try:
