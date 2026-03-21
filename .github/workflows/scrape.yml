@@ -2,11 +2,11 @@ name: Book Scraper
 
 on:
   schedule:
-    - cron: '0 0 * * 6'
+    - cron: '0 20 * * 6'
   workflow_dispatch:
 
 jobs:
-  prepare:
+  prepare-scrape:
     runs-on: ubuntu-22.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -14,41 +14,33 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
-          pip install -r requirements.txt
-          playwright install chromium
-          sudo apt-get update || true
-          playwright install-deps
+          pip install -r setup/requirements-scrape.txt
+          scrapling install
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(python main.py --mode "prepare-scrape")
+          JSON_DATA=$(python main.py --mode "prepare-scrape" --runners "all")
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
   scrape:
-    needs: prepare
+    needs: prepare-scrape
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare-scrape.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
-          pip install -r requirements.txt
-          playwright install chromium
-          sudo apt-get update || true
-          playwright install-deps
+          pip install -r setup/requirements-scrape.txt
+          scrapling install
       - name: Run Scraper
-        run: python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
+        run: python main.py --mode "scrape" --books_db_path "${{ matrix.books_db_path }}" --urls "${{ matrix.urls }}"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: db-${{ matrix.db_path }}
-          path: ${{ matrix.db_path }}
+          name: ${{ matrix.books_db_path }}
+          path: ${{ matrix.books_db_path }}
           retention-days: 7
 
   merge:
@@ -59,7 +51,7 @@ jobs:
       - name: Download all chunks
         uses: actions/download-artifact@v4
         with:
-          pattern: db-*
+          pattern: chunk-*
           merge-multiple: true
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -67,9 +59,9 @@ jobs:
           python-version: '3.10'
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r setup/requirements-scrape.txt
       - name: Merge Databases
-        run: python main.py --mode merge --chunks_dir "." --db_path "final_books.db"
+        run: python main.py --mode merge --chunks_dir "." --books_db_path "final_books.db"
       - name: Upload Final Database
         uses: actions/upload-artifact@v4
         with:
@@ -89,7 +81,7 @@ jobs:
           python-version: '3.10'
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r setup/requirements-scrape.txt
 
       - name: Download Final Database
         uses: actions/download-artifact@v4
@@ -98,8 +90,10 @@ jobs:
           path: .
 
       - name: Generate Chunks
+        id: set-matrix
         run: |
-          python main.py --mode prepare-rate --db_path "final_books.db" --chunks_dir "." > matrix.json
+          JSON_DATA=$(python main.py --mode prepare-rate --books_db_path "final_books.db" --chunks_dir ".")
+          echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
       - name: Upload Input Chunks
         uses: actions/upload-artifact@v4
@@ -108,16 +102,12 @@ jobs:
           path: "*.json"
           retention-days: 7
 
-      - id: set-matrix
-        run: echo "matrix=$(cat matrix.json)" >> $GITHUB_OUTPUT
-
   rate:
     needs: prepare-rate
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.prepare-rate.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare-rate.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -125,12 +115,8 @@ jobs:
           python-version: '3.10'
       - name: Install dependencies
         run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
-          pip install -r requirements.txt
-          playwright install chromium
-          sudo apt-get update || true
-          playwright install-deps
+          pip install -r setup/requirements-scrape.txt
+          scrapling install
 
       - name: Download Input Chunks
         uses: actions/download-artifact@v4
@@ -138,23 +124,24 @@ jobs:
           name: rate-json-chunks
           path: .
 
-      # 2. Run Worker (Reads chunk_X.json -> Writes rate_chunk_X.db)
       - name: Rate Books
         run: |
           python main.py --mode rate \
-            --books_data "${{ matrix.books_data }}" \
-            --db_path "${{ matrix.db_path }}"
+            --urls "${{ matrix.urls }}" \
+            --books_db_path "${{ matrix.books_db_path }}"
 
       - name: Upload Result Chunk
         uses: actions/upload-artifact@v4
         with:
-          name: rate-chunk-${{ matrix.db_path }}
-          path: ${{ matrix.db_path }}
+          name: rated-${{ matrix.books_db_path }}
+          path: ${{ matrix.books_db_path }}
           retention-days: 7
 
   apply-ratings:
     needs: [merge, rate]
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -162,32 +149,31 @@ jobs:
           python-version: '3.10'
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-      # 1. Download the "Master" DB from the previous merge step
+          pip install -r setup/requirements-scrape.txt
       - name: Download Master DB
         uses: actions/download-artifact@v4
         with:
           name: all-stores-combined-db
           path: .
 
-      # 2. Download ALL the small rate-chunks into an 'updates' folder
       - name: Download Rating Results
         uses: actions/download-artifact@v4
         with:
-          pattern: rate-chunk-*
+          pattern: rated-*
           merge-multiple: true
 
-      # 3. Run the Python merge logic
       - name: Apply Ratings
         run: |
           python main.py --mode apply-rates \
-            --db_path "final_books.db" \
+            --books_db_path "final_books.db" \
             --chunks_dir "."
 
-      # 4. Upload the final result
-      - name: Upload Final Rated Database
-        uses: actions/upload-artifact@v4
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: rated-final-books-db
-          path: final_books.db
-          retention-days: 7
+          tag_name: latest-db
+          name: Latest Books Database
+          files: final_books.db
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

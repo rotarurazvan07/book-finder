@@ -1,148 +1,174 @@
-
 import re
-from time import sleep
-
 from bs4 import BeautifulSoup
 import os
-import time
+import sys
 from book_crawler.BaseBookstore import BaseBookstore
-from book_framework.core.Book import Book, Offer,BookCategory
+from book_framework.core.Book import Book, Offer, BookCategory
 from book_framework.utils import log
+from book_framework.WebScraper import WebScraper, ScrapeMode
 
 ANTICARIAT_UNU_BASE_URL = "https://www.anticariat-unu.ro/"
 ANTICARIAT_UNU_NAME = "Anticariat Unu"
 ANTICARIAT_UNU_PAGE_QUERY = "/%s" # %s start from 0 and increments 30 by 30
 
-NUM_THREADS = 1
-
 class AnticariatUnu(BaseBookstore):
     def __init__(self, add_book_callback):
         super().__init__(add_book_callback)
-        self._scanned_pages = 0
         self.cats = {
-            BookCategory.LITERATURE: ["https://www.anticariat-unu.ro/autori-romani-c21",
-                                      "https://www.anticariat-unu.ro/literatura-universala-autori-straini-c14",
-                                     ],
+            # BookCategory.LITERATURE: ["https://www.anticariat-unu.ro/autori-romani-c21",
+            #                           "https://www.anticariat-unu.ro/literatura-universala-autori-straini-c14",
+            #                           ],
             BookCategory.HISTORY: ["https://www.anticariat-unu.ro/istorie-c3",
-                                   "https://www.anticariat-unu.ro/manuscrise-scrisori-documente-c58",
-                                   "https://www.anticariat-unu.ro/ziare-reviste-publicatii-vechi-c52",
-                                   "https://www.anticariat-unu.ro/manuale-vechi-c51",
-                                   "https://www.anticariat-unu.ro/etnografie-folclor-c22",
-                                   "https://www.anticariat-unu.ro/geografie-turism-geologie-astronomie-c19",
+                                #    "https://www.anticariat-unu.ro/manuscrise-scrisori-documente-c58",
+                                #    "https://www.anticariat-unu.ro/ziare-reviste-publicatii-vechi-c52",
+                                #    "https://www.anticariat-unu.ro/manuale-vechi-c51",
+                                #    "https://www.anticariat-unu.ro/etnografie-folclor-c22",
+                                #    "https://www.anticariat-unu.ro/geografie-turism-geologie-astronomie-c19",
                                    ],
-            BookCategory.ARTS: ["https://www.anticariat-unu.ro/arta-c4",
-                                "https://www.anticariat-unu.ro/arhitectura-c13",
-                                "https://www.anticariat-unu.ro/teatru-film-c16",
-                                "https://www.anticariat-unu.ro/carti-muzica-c15",
-                                ],
-            BookCategory.SPIRITUALITY: ["https://www.anticariat-unu.ro/religie-c34",
-                                        "https://www.anticariat-unu.ro/filosofie-logica-c17",
-                                        "https://www.anticariat-unu.ro/pseudostiinte-ocultism-ezoterism-etc-c41",
-                                        ],
-            BookCategory.SCIENCE: ["https://www.anticariat-unu.ro/medicina-alopata-si-alternativa-c24",
-                                   "https://www.anticariat-unu.ro/stiinte-juridice-c30",
-                                   "https://www.anticariat-unu.ro/enciclopedii-carti-de-stiinta-c6",
-                                   "https://www.anticariat-unu.ro/biologie-botanica-zoologie-c36",
-                                   "https://www.anticariat-unu.ro/chimie-c39",
-                                   "https://www.anticariat-unu.ro/matematica-fizica-c40",
-                                   "https://www.anticariat-unu.ro/carti-tehnice-c29",
-                                   ],
-            BookCategory.BUSINESS: ["https://www.anticariat-unu.ro/stiinte-economice-management-si-marketing-c28"],
-            BookCategory.PERSONAL_DEVELOPMENT: ["https://www.anticariat-unu.ro/psihologie-c18",
-                                                "https://www.anticariat-unu.ro/sociologie-media-jurnalism-advertising-c31",
-                                                "https://www.anticariat-unu.ro/pedagogie-c32"],
-            BookCategory.KIDS_YA: ["https://www.anticariat-unu.ro/carti-pentru-copii-literatura-populara-benzi-desenate-c45"],
-            BookCategory.HOBBIES: ["https://www.anticariat-unu.ro/gastronomie-c25",
-                                   "https://www.anticariat-unu.ro/diverse-broderie-tricotaj-fotografie-etc-c37",
-                                   "https://www.anticariat-unu.ro/educatie-fizica-sport-c44",
-                                   "https://www.anticariat-unu.ro/pescuit-vanatoare-c42"],
+            # BookCategory.ARTS: ["https://www.anticariat-unu.ro/arta-c4",
+            #                     "https://www.anticariat-unu.ro/arhitectura-c13",
+            #                     "https://www.anticariat-unu.ro/teatru-film-c16",
+            #                     "https://www.anticariat-unu.ro/carti-muzica-c15",
+            #                     ],
+            # BookCategory.SPIRITUALITY: ["https://www.anticariat-unu.ro/religie-c34",
+            #                             "https://www.anticariat-unu.ro/filosofie-logica-c17",
+            #                             "https://www.anticariat-unu.ro/pseudostiinte-ocultism-ezoterism-etc-c41",
+            #                             ],
+            # BookCategory.SCIENCE: ["https://www.anticariat-unu.ro/medicina-alopata-si-alternativa-c24",
+            #                        "https://www.anticariat-unu.ro/stiinte-juridice-c30",
+            #                        "https://www.anticariat-unu.ro/enciclopedii-carti-de-stiinta-c6",
+            #                        "https://www.anticariat-unu.ro/biologie-botanica-zoologie-c36",
+            #                        "https://www.anticariat-unu.ro/chimie-c39",
+            #                        "https://www.anticariat-unu.ro/matematica-fizica-c40",
+            #                        "https://www.anticariat-unu.ro/carti-tehnice-c29",
+            #                        ],
+            # BookCategory.BUSINESS: ["https://www.anticariat-unu.ro/stiinte-economice-management-si-marketing-c28"],
+            # BookCategory.PERSONAL_DEVELOPMENT: ["https://www.anticariat-unu.ro/psihologie-c18",
+            #                                     "https://www.anticariat-unu.ro/sociologie-media-jurnalism-advertising-c31",
+            #                                     "https://www.anticariat-unu.ro/pedagogie-c32"],
+            # BookCategory.KIDS_YA: ["https://www.anticariat-unu.ro/carti-pentru-copii-literatura-populara-benzi-desenate-c45"],
+            # BookCategory.HOBBIES: ["https://www.anticariat-unu.ro/gastronomie-c25",
+            #                        "https://www.anticariat-unu.ro/diverse-broderie-tricotaj-fotografie-etc-c37",
+            #                        "https://www.anticariat-unu.ro/educatie-fizica-sport-c44",
+            #                        "https://www.anticariat-unu.ro/pescuit-vanatoare-c42"],
         }
 
-    def get_all_urls(self):
-        self.get_web_scraper(profile='fast')
+    def get_urls(self):
+        """Discover available page URLs using binary search on each category."""
         urls = []
-        for url in [url for urls in self.cats.values() for url in urls]:
-            request_result = self.web_scraper.fast_http_request(url + ANTICARIAT_UNU_PAGE_QUERY % 0)
-            soup = BeautifulSoup(request_result, 'html.parser')
-            max_pages = (int(soup.find("li", class_="last").find('a')["data-ci-pagination-page"]) - 2)
-            low = 0
-            high = max_pages
-            last_valid_page = 0
-            while low <= high:
-                mid = (low + high) // 2
-                response_text = self.web_scraper.fast_http_request(url + (ANTICARIAT_UNU_PAGE_QUERY % (mid * 30)))
-                if not response_text:
-                    high = mid - 1
-                    continue
-                soup = BeautifulSoup(response_text, 'html.parser')
-                sold_count = len([s for s in soup.select('span.text-danger') if s.get_text(strip=True) == "VANDUT"])
-                if sold_count < 30:
-                    last_valid_page = mid
-                    low = mid + 1
-                else:
-                    high = mid - 1
+        all_cat_urls = [url for urls in self.cats.values() for url in urls]
 
-            max_pages = last_valid_page
-            for i in range(max_pages):
-                urls.append(url + (ANTICARIAT_UNU_PAGE_QUERY % (i * 30)))
-        self.destroy_scraper_thread()
+        for base_cat_url in all_cat_urls:
+            try:
+                # Get the last page info using FAST fetch
+                resp = WebScraper.fetch(base_cat_url + ANTICARIAT_UNU_PAGE_QUERY % 0)
+                if not resp:
+                    continue
+
+                soup = BeautifulSoup(resp, 'html.parser')
+                last_page_tag = soup.find("li", class_="last")
+                if not last_page_tag:
+                    urls.append(base_cat_url + ANTICARIAT_UNU_PAGE_QUERY % 0)
+                    continue
+
+                # Binary search to find the last page with unsold books
+                max_pages = int(last_page_tag.find('a')["data-ci-pagination-page"]) - 2
+                low, high = 0, max_pages
+                last_valid_page = 0
+
+                while low <= high:
+                    mid = (low + high) // 2
+                    resp_mid = WebScraper.fetch(base_cat_url + (ANTICARIAT_UNU_PAGE_QUERY % (mid * 30)))
+                    if not resp_mid:
+                        high = mid - 1
+                        continue
+
+                    soup_mid = BeautifulSoup(resp_mid, 'html.parser')
+                    # Count "VANDUT" (Sold) items
+                    sold_count = len([s for s in soup_mid.select('span.text-danger')
+                                        if s.get_text(strip=True) == "VANDUT"])
+
+                    if sold_count < 30: # If at least one book is available
+                        last_valid_page = mid
+                        low = mid + 1
+                    else:
+                        high = mid - 1
+
+                for i in range(last_valid_page + 1):
+                    urls.append(base_cat_url + (ANTICARIAT_UNU_PAGE_QUERY % (i * 30)))
+
+            except Exception as e:
+                print(f"❌ Error getting URLs for {base_cat_url}: {e}", file=sys.stderr)
+
         return urls
 
-    def get_books(self, urls):
-        self.get_web_scraper(profile='fast')
-        self.run_workers(urls if urls is not None else self.get_all_urls(), self._find_books_job, num_threads=NUM_THREADS)
-        self.destroy_scraper_thread()
+    def get_books(self, urls=None):
+        """Entry point for scraping books."""
+        target_urls = urls if urls is not None else self.get_urls()
+        if not target_urls:
+            print("⚠️ No URLs found for Anticariat Unu.")
+            return
 
-        print(f"Finished scanning {self._scanned_pages} pages")
+        print(f"🚀 Scraping {len(target_urls)} pages from Anticariat Unu...")
+        # Concurrency 10-20
+        self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=1)
 
-    def _log_progress(self, urls):
-        """Log scraping progress."""
-        total = len(urls)
-        while not self._stop_logging:
-            progress = (self._scanned_pages / total * 100) if total > 0 else 0
-            print(f"Progress: {self._scanned_pages}/{total} ({progress:.1f}%)")
-            time.sleep(2)
-
-    def _find_books_job(self, urls, thread_id):
+    def _parse_page(self, url, html):
+        """Parser for a single page of results."""
         try:
-            for url in urls:
-                self._scanned_pages += 1
+            soup = BeautifulSoup(html, 'html.parser')
+            # Extract bookstore's inner list container
+            book_anchors = soup.find_all(class_="book")
+            if not book_anchors:
+                return
 
-                request_result = self.web_scraper.fast_http_request(url)
+            # Determine category based on URL
+            category = BookCategory.NONE
+            for cat, cat_urls in self.cats.items():
+                if any(u in url for u in cat_urls):
+                    category = cat
+                    break
+
+            for book_anchor in book_anchors:
                 try:
-                    soup = BeautifulSoup(request_result, 'html.parser')
-                    book_anchors = soup.find_all(class_="book")
-                    for book_anchor in book_anchors:
-                        try:
-                            title_author_tag = book_anchor.find("h3").find("a")
-                            book_url = title_author_tag['href']
-                            price_tag = book_anchor.find(class_="price")
-                            isbn_tag = None
-                            if not title_author_tag or not price_tag:
-                                continue # need at least title and price
+                    title_author_tag = book_anchor.find("h3").find("a")
+                    price_tag = book_anchor.find(class_="price")
 
-                            title_author = title_author_tag.get_text().strip()
-                            for separator in [" de ", " by ", " par ", "..."]:
-                                if separator in title_author:
-                                    title = title_author.rsplit(separator)[0]
-                                    author = title_author.rsplit(separator)[1].split(",")[0]
-                                    break
-                                title = title_author
-                                author = None
-                            isbn = isbn_tag.get_text() if isbn_tag else None
-                            price = float(price_tag.get_text().replace("Lei",'').strip())
+                    if not title_author_tag or not price_tag:
+                        continue
 
-                            book = Book(
-                                title=title,
-                                author=author,
-                                isbn=isbn,
-                                category = next((cat for cat, urls in self.cats.items() if any(u in url for u in urls)), BookCategory.NONE),
-                                offers=[Offer(ANTICARIAT_UNU_NAME, book_url, price)]
-                            )
-                            self.add_book(book)
-                        except Exception as e:
-                            log(f"Caught {e}")
+                    # skip if already sold (has span.text-danger with VANDUT)
+                    sold_tag = book_anchor.find('span', class_='text-danger')
+                    if sold_tag and "VANDUT" in sold_tag.get_text():
+                        continue
+
+                    title_author = title_author_tag.get_text().strip()
+                    title, author = title_author, None
+
+                    # Split title and author using known separators
+                    for separator in [" de ", " by ", " par ", "..."]:
+                        if separator in title_author:
+                            parts = title_author.rsplit(separator, 1)
+                            title = parts[0].strip()
+                            author = parts[1].split(",")[0].strip()
+                            break
+
+                    book_url = title_author_tag['href']
+                    if not book_url.startswith("http"):
+                        book_url = ANTICARIAT_UNU_BASE_URL.rstrip('/') + book_url
+
+                    price_text = price_tag.get_text().replace("Lei", "").replace(",", ".").strip()
+                    price = float(price_text)
+
+                    book = Book(
+                        title=title,
+                        author=author,
+                        isbn=None,
+                        category=category,
+                        offers=[Offer(ANTICARIAT_UNU_NAME, book_url, price)]
+                    )
+                    self.add_book(book)
                 except Exception as e:
-                    log(f"Caught {e}")
-        finally:
-            self.destroy_scraper_thread()
+                    pass
+        except Exception as e:
+            log(f"Error parsing page {url}: {e}")

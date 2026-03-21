@@ -8,8 +8,8 @@ import pandas as pd
 from datetime import datetime
 import numpy as np
 
-# Assuming DatabaseManager is in your project
-from book_framework.DatabaseManager import DatabaseManager
+# Assuming BooksManager is in your project
+from book_framework.BooksManager import BooksManager
 from book_framework.SettingsManager import settings_manager
 
 class BookDashboard:
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     parser.add_argument("db_path", help="Path to the SQLite database file (e.g., books.db)")
     args = parser.parse_args()
 
-    db_manager = DatabaseManager(args.db_path)
+    db_manager = BooksManager(args.db_path)
 
     dashboard = BookDashboard(db_manager)
     dashboard.run(debug=False, port=8051)

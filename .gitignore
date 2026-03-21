@@ -1,4 +1,4 @@
-book_framework/__pycache__/*
-book_crawler/__pycache__/*
-book_framework/core/__pycache__/*
-__pycache__/*
+*.pyc
+venv/
+*.db
+.tasks/

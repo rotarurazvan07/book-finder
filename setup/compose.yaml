@@ -1,0 +1,27 @@
+services:
+  book-dashboard:
+    image: ghcr.io/rotarurazvan07/book-finder:latest
+    container_name: book-dashboard
+    restart: always
+    environment:
+      - REPO=rotarurazvan07/book-finder
+    command: TODO
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./data:/app/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=book-stack"
+
+  book-updater:
+    image: containrrr/watchtower:1.7.1
+    platform: linux/arm64
+    container_name: book-updater
+    restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/fir3w4ll/.docker/config.json:/config.json:ro
+    command: --interval 300 --cleanup --scope book-stack
