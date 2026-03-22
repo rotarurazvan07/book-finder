@@ -50,9 +50,13 @@ class SettingsManager:
 
     def write(self, directory: str, name: str, data: Dict[str, Any]) -> bool:
         try:
+            import os
             p = Path(directory) / f"{name}.yaml"
             p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(yaml.dump(data))
+
+            temp_path = p.with_suffix(".tmp")
+            temp_path.write_text(yaml.dump(data))
+            os.replace(temp_path, p)
             return True
         except Exception as e:
             print(f"[SettingsManager] write failed for {name}: {e}")

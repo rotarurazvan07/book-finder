@@ -42,7 +42,10 @@ class Book:
         self.author = self._clean(self.author) if self.author is not None else None
         self.isbn = self._clean(self.isbn) if self.isbn is not None else None
         self.rating = float(self.rating) if self.rating is not None else None
-        # We also clean the URL just in case there's a stray newline
+        # Default to NONE category if not provided
+        if self.category is None:
+            self.category = BookCategory.NONE
+
         if self.goodreads_url:
             self.goodreads_url = self._clean(self.goodreads_url).replace(" ","%20") if self.goodreads_url is not None else None
 

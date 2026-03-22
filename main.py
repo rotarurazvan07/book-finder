@@ -31,7 +31,7 @@ from contextlib import redirect_stdout
 from types import SimpleNamespace
 from urllib.parse import urlparse
 
-from book_framework.BooksManager import BooksManager, merge_databases
+from book_framework.BooksManager import BooksManager
 from book_framework.SettingsManager import SettingsManager
 from book_framework.core.Goodreads import rateBooks
 
@@ -248,7 +248,7 @@ def mode_merge(books_db_path: str, chunks_dir: str):
         print(f"❌ Not a valid directory: {chunks_dir}", file=sys.stderr)
         sys.exit(1)
 
-    merge_databases(chunks_dir, books_db_path)
+    BooksManager.merge_databases(chunks_dir, books_db_path)
     print(f"✅ Merged into {books_db_path}")
 
 
