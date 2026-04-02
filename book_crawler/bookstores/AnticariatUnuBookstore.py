@@ -8,47 +8,48 @@ logger = get_logger(__name__)
 ANTICARIAT_UNU_BASE_URL = "https://www.anticariat-unu.ro/"
 ANTICARIAT_UNU_NAME = "Anticariat Unu"
 ANTICARIAT_UNU_PAGE_QUERY = "/%s" # %s start from 0 and increments 30 by 30
+MAX_CONCURRENCY = 3
 
 class AnticariatUnu(BaseBookstore):
     def __init__(self, add_book_callback):
         super().__init__(add_book_callback)
         self.cats = {
-            # BookCategory.LITERATURE: ["https://www.anticariat-unu.ro/autori-romani-c21",
-            #                           "https://www.anticariat-unu.ro/literatura-universala-autori-straini-c14",
-            #                           ],
+            BookCategory.LITERATURE: ["https://www.anticariat-unu.ro/autori-romani-c21",
+                                      "https://www.anticariat-unu.ro/literatura-universala-autori-straini-c14",
+                                      ],
             BookCategory.HISTORY: ["https://www.anticariat-unu.ro/istorie-c3",
-                                #    "https://www.anticariat-unu.ro/manuscrise-scrisori-documente-c58",
-                                #    "https://www.anticariat-unu.ro/ziare-reviste-publicatii-vechi-c52",
-                                #    "https://www.anticariat-unu.ro/manuale-vechi-c51",
-                                #    "https://www.anticariat-unu.ro/etnografie-folclor-c22",
-                                #    "https://www.anticariat-unu.ro/geografie-turism-geologie-astronomie-c19",
+                                   "https://www.anticariat-unu.ro/manuscrise-scrisori-documente-c58",
+                                   "https://www.anticariat-unu.ro/ziare-reviste-publicatii-vechi-c52",
+                                   "https://www.anticariat-unu.ro/manuale-vechi-c51",
+                                   "https://www.anticariat-unu.ro/etnografie-folclor-c22",
+                                   "https://www.anticariat-unu.ro/geografie-turism-geologie-astronomie-c19",
                                    ],
-            # BookCategory.ARTS: ["https://www.anticariat-unu.ro/arta-c4",
-            #                     "https://www.anticariat-unu.ro/arhitectura-c13",
-            #                     "https://www.anticariat-unu.ro/teatru-film-c16",
-            #                     "https://www.anticariat-unu.ro/carti-muzica-c15",
-            #                     ],
-            # BookCategory.SPIRITUALITY: ["https://www.anticariat-unu.ro/religie-c34",
-            #                             "https://www.anticariat-unu.ro/filosofie-logica-c17",
-            #                             "https://www.anticariat-unu.ro/pseudostiinte-ocultism-ezoterism-etc-c41",
-            #                             ],
-            # BookCategory.SCIENCE: ["https://www.anticariat-unu.ro/medicina-alopata-si-alternativa-c24",
-            #                        "https://www.anticariat-unu.ro/stiinte-juridice-c30",
-            #                        "https://www.anticariat-unu.ro/enciclopedii-carti-de-stiinta-c6",
-            #                        "https://www.anticariat-unu.ro/biologie-botanica-zoologie-c36",
-            #                        "https://www.anticariat-unu.ro/chimie-c39",
-            #                        "https://www.anticariat-unu.ro/matematica-fizica-c40",
-            #                        "https://www.anticariat-unu.ro/carti-tehnice-c29",
-            #                        ],
-            # BookCategory.BUSINESS: ["https://www.anticariat-unu.ro/stiinte-economice-management-si-marketing-c28"],
-            # BookCategory.PERSONAL_DEVELOPMENT: ["https://www.anticariat-unu.ro/psihologie-c18",
-            #                                     "https://www.anticariat-unu.ro/sociologie-media-jurnalism-advertising-c31",
-            #                                     "https://www.anticariat-unu.ro/pedagogie-c32"],
-            # BookCategory.KIDS_YA: ["https://www.anticariat-unu.ro/carti-pentru-copii-literatura-populara-benzi-desenate-c45"],
-            # BookCategory.HOBBIES: ["https://www.anticariat-unu.ro/gastronomie-c25",
-            #                        "https://www.anticariat-unu.ro/diverse-broderie-tricotaj-fotografie-etc-c37",
-            #                        "https://www.anticariat-unu.ro/educatie-fizica-sport-c44",
-            #                        "https://www.anticariat-unu.ro/pescuit-vanatoare-c42"],
+            BookCategory.ARTS: ["https://www.anticariat-unu.ro/arta-c4",
+                                "https://www.anticariat-unu.ro/arhitectura-c13",
+                                "https://www.anticariat-unu.ro/teatru-film-c16",
+                                "https://www.anticariat-unu.ro/carti-muzica-c15",
+                                ],
+            BookCategory.SPIRITUALITY: ["https://www.anticariat-unu.ro/religie-c34",
+                                        "https://www.anticariat-unu.ro/filosofie-logica-c17",
+                                        "https://www.anticariat-unu.ro/pseudostiinte-ocultism-ezoterism-etc-c41",
+                                        ],
+            BookCategory.SCIENCE: ["https://www.anticariat-unu.ro/medicina-alopata-si-alternativa-c24",
+                                   "https://www.anticariat-unu.ro/stiinte-juridice-c30",
+                                   "https://www.anticariat-unu.ro/enciclopedii-carti-de-stiinta-c6",
+                                   "https://www.anticariat-unu.ro/biologie-botanica-zoologie-c36",
+                                   "https://www.anticariat-unu.ro/chimie-c39",
+                                   "https://www.anticariat-unu.ro/matematica-fizica-c40",
+                                   "https://www.anticariat-unu.ro/carti-tehnice-c29",
+                                   ],
+            BookCategory.BUSINESS: ["https://www.anticariat-unu.ro/stiinte-economice-management-si-marketing-c28"],
+            BookCategory.PERSONAL_DEVELOPMENT: ["https://www.anticariat-unu.ro/psihologie-c18",
+                                                "https://www.anticariat-unu.ro/sociologie-media-jurnalism-advertising-c31",
+                                                "https://www.anticariat-unu.ro/pedagogie-c32"],
+            BookCategory.KIDS_YA: ["https://www.anticariat-unu.ro/carti-pentru-copii-literatura-populara-benzi-desenate-c45"],
+            BookCategory.HOBBIES: ["https://www.anticariat-unu.ro/gastronomie-c25",
+                                   "https://www.anticariat-unu.ro/diverse-broderie-tricotaj-fotografie-etc-c37",
+                                   "https://www.anticariat-unu.ro/educatie-fizica-sport-c44",
+                                   "https://www.anticariat-unu.ro/pescuit-vanatoare-c42"],
         }
 
     def get_urls(self):
@@ -117,7 +118,7 @@ class AnticariatUnu(BaseBookstore):
 
         logger.info("Scraping %d pages from Anticariat Unu", len(target_urls))
         # Concurrency 10-20
-        self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=1)
+        self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
 
     def _parse_page(self, url, html):
         """Parser for a single page of results."""

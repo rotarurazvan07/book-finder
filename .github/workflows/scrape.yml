@@ -178,13 +178,14 @@ jobs:
           ./venv/bin/python -m book_crawler.crawl --mode apply-rates \
             --books_db_path "scrape_merged.db" \
             --chunks_dir "."
+          mv scrape_merged.db final_books.db
 
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-db
           name: Latest Books Database
-          files: scrape_merged.db
+          files: final_books.db
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

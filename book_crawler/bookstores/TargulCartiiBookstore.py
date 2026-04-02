@@ -8,18 +8,19 @@ logger = get_logger(__name__)
 TARGUL_CARTII_BASE_URL = "https://www.targulcartii.ro/"
 TARGUL_CARTII_NAME = "Targul Cartii"
 TARGUL_CARTII_PAGE_QUERY = "?limit=40&page=%s"
+MAX_CONCURRENCY = 3
 
 class TargulCartii(BaseBookstore):
     def __init__(self, add_book_callback):
         super().__init__(add_book_callback)
         self.cats = {
-            # BookCategory.LITERATURE: ["https://www.targulcartii.ro/literatura", "https://www.targulcartii.ro/carti-in-limba-straina"],
-            # BookCategory.KIDS_YA: ["https://www.targulcartii.ro/carti-pentru-copii"],
-            # BookCategory.ARTS: ["https://www.targulcartii.ro/arta-si-arhitectura"],
-            # BookCategory.SCIENCE: ["https://www.targulcartii.ro/dictionare-cultura-educatie", "https://www.targulcartii.ro/stiinta-si-tehnica"],
+            BookCategory.LITERATURE: ["https://www.targulcartii.ro/literatura", "https://www.targulcartii.ro/carti-in-limba-straina"],
+            BookCategory.KIDS_YA: ["https://www.targulcartii.ro/carti-pentru-copii"],
+            BookCategory.ARTS: ["https://www.targulcartii.ro/arta-si-arhitectura"],
+            BookCategory.SCIENCE: ["https://www.targulcartii.ro/dictionare-cultura-educatie", "https://www.targulcartii.ro/stiinta-si-tehnica"],
             BookCategory.HISTORY: ["https://www.targulcartii.ro/istorie-si-etnografie"],
-            # BookCategory.SPIRITUALITY : ["https://www.targulcartii.ro/spiritualitate"],
-            # BookCategory.HOBBIES: ["https://www.targulcartii.ro/hobby-si-ghiduri"]
+            BookCategory.SPIRITUALITY : ["https://www.targulcartii.ro/spiritualitate"],
+            BookCategory.HOBBIES: ["https://www.targulcartii.ro/hobby-si-ghiduri"]
         }
 
     def get_urls(self):
@@ -59,8 +60,7 @@ class TargulCartii(BaseBookstore):
             return
 
         logger.info("Scraping %d pages from Targul Cartii", len(target_urls))
-        # Targul Cartii is generally fast and doesn't block heavily, but we'll use concurrency 10-20
-        self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=1)
+        self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=MAX_CONCURRENCY)
 
     def _parse_page(self, url, html):
         """Parser for a single page of results."""
