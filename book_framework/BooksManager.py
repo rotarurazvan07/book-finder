@@ -41,13 +41,14 @@ class BooksManager(BufferedStorageManager):
     # ── Flush: preserve schema/indexes ───────────────────────────────────────
 
     def flush(self) -> None:
-        if not self._dirty or self._buffer is None:
+        if not self._dirty:
             return
+        df = self.ensure_buffer()
         with self.db_lock:
             try:
                 self.conn.execute("DELETE FROM books")
-                if not self._buffer.empty:
-                    self._buffer.to_sql(
+                if not df.empty:
+                    df.to_sql(
                         "books", self.conn, if_exists="append", index=False
                     )
                 self.conn.commit()
@@ -130,7 +131,10 @@ class BooksManager(BufferedStorageManager):
 
         manager = cls(output_file)
         manager.reset_db()
-        manager.ensure_buffer()
+        buf0 = manager.ensure_buffer()
+        url_to_idx: dict[str, int] = (
+            {str(u): int(i) for i, u in buf0["url"].items() if pd.notna(u)} if not buf0.empty else {}
+        )
 
         processed = 0
         deduped = 0
@@ -173,15 +177,20 @@ class BooksManager(BufferedStorageManager):
             url = payload.get("url")
             if not url:
                 return
+            title = payload.get("title")
+            if not isinstance(title, str) or not title.strip():
+                return
 
             buf = manager.ensure_buffer()
-            matches = buf.index[buf["url"] == url] if not buf.empty else []
-            if len(matches) == 0:
-                manager.insert(payload)
+            idx = url_to_idx.get(url)
+            if idx is None:
+                buf.loc[len(buf)] = payload
+                manager._dirty = True
+                idx = len(buf) - 1
+                url_to_idx[url] = idx
                 return
 
             deduped += 1
-            idx = matches[0]
             buf.at[idx, "isbn"] = _max_text(buf.at[idx, "isbn"], payload.get("isbn"))
             buf.at[idx, "category"] = _merge_categories(
                 buf.at[idx, "category"], payload.get("category")
@@ -195,7 +204,14 @@ class BooksManager(BufferedStorageManager):
             buf.at[idx, "price"] = _min_num(buf.at[idx, "price"], payload.get("price"))
             manager._dirty = True
 
-        report = manager.merge_row_by_row(input_dir, "books", row_callback=_row)
+        report = manager.merge_row_by_row(
+            input_dir,
+            "books",
+            row_callback=_row,
+            flush_callback=manager.flush,
+            read_batch_size=2000,
+            flush_every_rows=10000,
+        )
         manager.flush()
         manager.close()
 
