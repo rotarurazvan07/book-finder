@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from collections import OrderedDict
 
 import pandas as pd
 from scrape_kit import BufferedStorageManager, get_logger
@@ -129,10 +128,10 @@ class BooksManager(BufferedStorageManager):
 
         manager = cls(output_file)
         manager.reset_db()
-        
+
         # Step 1: Bulk merge all chunks into staging table (fast)
         report = super(BooksManager, manager).merge_databases(input_dir, "books")
-        
+
         # Step 2: Deduplicate from staging into books using SQL aggregation
         with manager.db_lock:
             manager.conn.execute("""
@@ -154,38 +153,40 @@ class BooksManager(BufferedStorageManager):
                 GROUP BY url
             """)
             manager.conn.commit()
-            
+
             # Step 3: Fix categories in-place (single pass over final deduplicated data)
-            rows = manager.conn.execute("SELECT rowid, category FROM books WHERE category IS NOT NULL").fetchall()
+            rows = manager.conn.execute(
+                "SELECT rowid, category FROM books WHERE category IS NOT NULL"
+            ).fetchall()
             for row_id, cat_str in rows:
                 if not cat_str:
                     continue
                 # Split by both | (from GROUP_CONCAT) and , (within each field)
                 tokens = set()
-                for segment in cat_str.split('|'):
-                    for token in segment.split(','):
+                for segment in cat_str.split("|"):
+                    for token in segment.split(","):
                         clean = token.strip()
                         if clean:
                             tokens.add(clean)
-                
+
                 clean_category = ", ".join(sorted(tokens)) if tokens else None
                 manager.conn.execute(
                     "UPDATE books SET category = ? WHERE rowid = ?",
-                    (clean_category, row_id)
+                    (clean_category, row_id),
                 )
-            
+
             manager.conn.commit()
-            
+
             # Cleanup staging table
             manager.conn.execute("DROP TABLE IF EXISTS staging_books")
             manager.conn.commit()
-        
+
         manager.close()
-        
+
         if report.errors:
             for err in report.errors:
                 logger.warning("Merge chunk warning: %s", err)
-        
+
         logger.info(
             "FINISHED merge: chunks=%d, skipped=%d",
             report.processed_chunks,
