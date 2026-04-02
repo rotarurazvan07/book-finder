@@ -48,9 +48,7 @@ class BooksManager(BufferedStorageManager):
             try:
                 self.conn.execute("DELETE FROM books")
                 if not df.empty:
-                    df.to_sql(
-                        "books", self.conn, if_exists="append", index=False
-                    )
+                    df.to_sql("books", self.conn, if_exists="append", index=False)
                 self.conn.commit()
                 self._dirty = False
             except Exception as exc:
@@ -133,7 +131,9 @@ class BooksManager(BufferedStorageManager):
         manager.reset_db()
         buf0 = manager.ensure_buffer()
         url_to_idx: dict[str, int] = (
-            {str(u): int(i) for i, u in buf0["url"].items() if pd.notna(u)} if not buf0.empty else {}
+            {str(u): int(i) for i, u in buf0["url"].items() if pd.notna(u)}
+            if not buf0.empty
+            else {}
         )
 
         processed = 0
