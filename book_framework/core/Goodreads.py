@@ -1,9 +1,9 @@
-import re
 import math
+import re
+from collections.abc import Callable
 from urllib.parse import quote_plus
-from bs4 import BeautifulSoup
-from typing import List, Optional, Tuple, Callable
 
+from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, SimilarityEngine, get_logger, scrape
 
 logger = get_logger(__name__)
@@ -15,7 +15,7 @@ NOT_FOUND_INDICATOR = "looking for a book?"
 REJECTED_GOODREADS_TITLES = ["summary", "review", "preview"]
 
 
-def _clean_text(value) -> Optional[str]:
+def _clean_text(value) -> str | None:
     """Normalize optional text fields coming from dataframe/json payloads."""
     if value is None:
         return None
@@ -27,13 +27,17 @@ def _clean_text(value) -> Optional[str]:
     return cleaned or None
 
 
-def _parse_isbn_page(html_text: str, search_url: str) -> Tuple[Optional[float], Optional[str]]:
+def _parse_isbn_page(
+    html_text: str, search_url: str
+) -> tuple[float | None, str | None]:
     try:
         if not html_text or NOT_FOUND_INDICATOR in html_text.lower():
             return None, None
         html = BeautifulSoup(html_text, "html.parser")
         rating_val = html.find("div", class_="RatingStatistics__rating").text.strip()
-        ratings_count_text = html.find("span", {"data-testid": "ratingsCount"}).text.strip()
+        ratings_count_text = html.find(
+            "span", {"data-testid": "ratingsCount"}
+        ).text.strip()
         match = re.search(r"\d{1,3}(?:,\d{3})*", ratings_count_text)
         if not match:
             return None, None
@@ -46,9 +50,9 @@ def _parse_isbn_page(html_text: str, search_url: str) -> Tuple[Optional[float], 
 def _parse_search_page(
     html_text: str,
     title: str,
-    author: Optional[str],
+    author: str | None,
     similarity_engine: SimilarityEngine,
-) -> Tuple[Optional[float], Optional[str]]:
+) -> tuple[float | None, str | None]:
     if not html_text or NOT_FOUND_INDICATOR in html_text.lower():
         return None, None
 
@@ -110,19 +114,23 @@ def _book_queries(book) -> list[tuple[str, str]]:
     if isbn:
         queries.append(("isbn", GOODREADS_SEARCH % quote_plus(str(isbn))))
     if author:
-        queries.append(("author_title", GOODREADS_SEARCH % quote_plus(f"{author} {title}")))
+        queries.append(
+            ("author_title", GOODREADS_SEARCH % quote_plus(f"{author} {title}"))
+        )
     queries.append(("title", GOODREADS_SEARCH % quote_plus(title)))
     return queries
 
 
 def rateBooks(
-    books: List,
+    books: list,
     update_rating_callback: Callable,
-    similarity_config: Optional[dict] = None,
+    similarity_config: dict | None = None,
 ):
     """Rate books by batch-scraping Goodreads search URLs, then parsing results."""
     if not similarity_config:
-        raise ValueError("similarity_config is required for rateBooks with scrape_kit SimilarityEngine")
+        raise ValueError(
+            "similarity_config is required for rateBooks with scrape_kit SimilarityEngine"
+        )
 
     similarity_engine = SimilarityEngine(similarity_config)
 
@@ -135,7 +143,10 @@ def rateBooks(
         try:
             rowid = int(getattr(book, "rowid"))
         except Exception:
-            logger.warning("Skipping book without valid rowid: %s", getattr(book, "title", "unknown"))
+            logger.warning(
+                "Skipping book without valid rowid: %s",
+                getattr(book, "title", "unknown"),
+            )
             continue
 
         plan = _book_queries(book)
@@ -153,7 +164,9 @@ def rateBooks(
 
     if all_urls:
         try:
-            scrape(all_urls, callback=_on_html, mode=ScrapeMode.STEALTH, max_concurrency=8)
+            scrape(
+                all_urls, callback=_on_html, mode=ScrapeMode.STEALTH, max_concurrency=8
+            )
         except Exception as e:
             logger.warning("STEALTH scrape had errors: %s", e)
 
@@ -161,7 +174,9 @@ def rateBooks(
         try:
             rowid = int(getattr(book, "rowid"))
         except Exception as e:
-            logger.error("Invalid rowid on book %s: %s", getattr(book, "title", "unknown"), e)
+            logger.error(
+                "Invalid rowid on book %s: %s", getattr(book, "title", "unknown"), e
+            )
             continue
 
         title = _clean_text(getattr(book, "title", None))
@@ -171,8 +186,8 @@ def rateBooks(
             continue
         logger.info("Evaluating Goodreads rating for %s by %s", title, author)
 
-        rating: Optional[float] = None
-        gr_url: Optional[str] = None
+        rating: float | None = None
+        gr_url: str | None = None
 
         for query_kind, url in plans.get(rowid, []):
             html_text = responses.get(url)
@@ -182,7 +197,9 @@ def rateBooks(
             if query_kind == "isbn":
                 rating, gr_url = _parse_isbn_page(html_text, url)
             else:
-                rating, gr_url = _parse_search_page(html_text, title, author, similarity_engine)
+                rating, gr_url = _parse_search_page(
+                    html_text, title, author, similarity_engine
+                )
 
             if rating is not None and gr_url:
                 break

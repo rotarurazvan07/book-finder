@@ -262,9 +262,13 @@ def mode_rate(books_db_path: str, urls_str: str, config_dir: str) -> None:
             conn.commit()
         logger.info(f"  ✔️ Saved: Row {rowid} -> {rating} stars")
 
-    similarity_config = SettingsManager(config_dir).get("similarity_config") if config_dir else None
+    similarity_config = (
+        SettingsManager(config_dir).get("similarity_config") if config_dir else None
+    )
     if not similarity_config:
-        build_parser().error("--config_dir with similarity_config.yaml is required for rate")
+        build_parser().error(
+            "--config_dir with similarity_config.yaml is required for rate"
+        )
 
     logger.info(f"🚀 Starting rating for {len(books)} books from {urls_str}")
     rateBooks(books, _save_rating_to_chunk, similarity_config=similarity_config)
@@ -374,7 +378,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--mode",
         required=True,
-        choices=["prepare-scrape", "scrape", "prepare-rate", "rate", "merge", "apply-rates"],
+        choices=[
+            "prepare-scrape",
+            "scrape",
+            "prepare-rate",
+            "rate",
+            "merge",
+            "apply-rates",
+        ],
     )
     p.add_argument("--books_db_path", help="Path to the main SQLite DB")
     p.add_argument(

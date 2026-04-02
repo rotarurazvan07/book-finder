@@ -1,7 +1,7 @@
-from dataclasses import dataclass, field, asdict
-from enum import Enum
 import re
-from typing import List, Optional
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+
 
 class BookCategory(Enum):
     LITERATURE = "Literature"
@@ -16,27 +16,29 @@ class BookCategory(Enum):
     OTHER = "Other"
     NONE = "None"
 
+
 @dataclass
 class Offer:
     store: str
     url: str
     price: float
 
-    def __post_init__(self):
-        self.price=float(self.price) if self.price is not None else None
-        self.url = self.url.replace(" ","%20")
+    def __post_init__(self) -> None:
+        self.price = float(self.price) if self.price is not None else None
+        self.url = self.url.replace(" ", "%20")
+
 
 @dataclass
 class Book:
     title: str
     author: str = None
     isbn: str = None
-    category: 'BookCategory' = None
-    offers: List['Offer'] = field(default_factory=list)
-    rating: Optional[float] = None
-    goodreads_url: Optional[str] = None
+    category: "BookCategory" = None
+    offers: list["Offer"] = field(default_factory=list)
+    rating: float | None = None
+    goodreads_url: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Automatically sanitizes strings after initialization."""
         self.title = self._clean(self.title)
         self.author = self._clean(self.author) if self.author is not None else None
@@ -47,16 +49,20 @@ class Book:
             self.category = BookCategory.NONE
 
         if self.goodreads_url:
-            self.goodreads_url = self._clean(self.goodreads_url).replace(" ","%20") if self.goodreads_url is not None else None
+            self.goodreads_url = (
+                self._clean(self.goodreads_url).replace(" ", "%20")
+                if self.goodreads_url is not None
+                else None
+            )
 
-    def _clean(self, value: Optional[str]) -> Optional[str]:
+    def _clean(self, value: str | None) -> str | None:
         """Replaces all whitespace sequences (\t, \n, multiple spaces) with one space."""
         if not value:
             return None
         # \s+ matches one or more whitespace characters
-        return re.sub(r'\s+', ' ', value).strip()
+        return re.sub(r"\s+", " ", value).strip()
 
     def to_dict(self):
         data = asdict(self)
-        data['category'] = self.category.value
+        data["category"] = self.category.value
         return data

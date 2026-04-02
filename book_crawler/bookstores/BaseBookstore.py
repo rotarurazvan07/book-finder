@@ -1,12 +1,13 @@
-from abc import abstractmethod, ABC
-from typing import Callable
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 from scrape_kit import ScrapeMode, get_logger, scrape
 
 logger = get_logger(__name__)
 
+
 class BaseBookstore(ABC):
-    def __init__(self, add_book_callback: Callable):
+    def __init__(self, add_book_callback: Callable) -> None:
         super().__init__()
         self.add_book_callback = add_book_callback
 
@@ -24,7 +25,9 @@ class BaseBookstore(ABC):
         """Parse a single scraped page. Used as callback for scrape_urls()."""
         raise NotImplementedError()
 
-    def scrape_urls(self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1):
+    def scrape_urls(
+        self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1
+    ) -> None:
         """Scrape URLs with concurrency, calling callback(url, html) for each page."""
         logger.info(
             "Starting scrape for %d URLs (mode=%s, concurrency=%d)",

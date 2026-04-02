@@ -1,7 +1,8 @@
 from bs4 import BeautifulSoup
-from book_crawler.bookstores.BaseBookstore import BaseBookstore
-from book_framework.core.Book import Book, Offer, BookCategory
 from scrape_kit import ScrapeMode, fetch, get_logger
+
+from book_crawler.bookstores.BaseBookstore import BaseBookstore
+from book_framework.core.Book import Book, BookCategory, Offer
 
 logger = get_logger(__name__)
 
@@ -10,17 +11,24 @@ TARGUL_CARTII_NAME = "Targul Cartii"
 TARGUL_CARTII_PAGE_QUERY = "?limit=40&page=%s"
 MAX_CONCURRENCY = 3
 
+
 class TargulCartii(BaseBookstore):
-    def __init__(self, add_book_callback):
+    def __init__(self, add_book_callback) -> None:
         super().__init__(add_book_callback)
         self.cats = {
-            BookCategory.LITERATURE: ["https://www.targulcartii.ro/literatura", "https://www.targulcartii.ro/carti-in-limba-straina"],
+            BookCategory.LITERATURE: [
+                "https://www.targulcartii.ro/literatura",
+                "https://www.targulcartii.ro/carti-in-limba-straina",
+            ],
             BookCategory.KIDS_YA: ["https://www.targulcartii.ro/carti-pentru-copii"],
             BookCategory.ARTS: ["https://www.targulcartii.ro/arta-si-arhitectura"],
-            BookCategory.SCIENCE: ["https://www.targulcartii.ro/dictionare-cultura-educatie", "https://www.targulcartii.ro/stiinta-si-tehnica"],
+            BookCategory.SCIENCE: [
+                "https://www.targulcartii.ro/dictionare-cultura-educatie",
+                "https://www.targulcartii.ro/stiinta-si-tehnica",
+            ],
             BookCategory.HISTORY: ["https://www.targulcartii.ro/istorie-si-etnografie"],
-            BookCategory.SPIRITUALITY : ["https://www.targulcartii.ro/spiritualitate"],
-            BookCategory.HOBBIES: ["https://www.targulcartii.ro/hobby-si-ghiduri"]
+            BookCategory.SPIRITUALITY: ["https://www.targulcartii.ro/spiritualitate"],
+            BookCategory.HOBBIES: ["https://www.targulcartii.ro/hobby-si-ghiduri"],
         }
 
     def get_urls(self):
@@ -28,7 +36,9 @@ class TargulCartii(BaseBookstore):
         urls = []
         all_cat_urls = [url for urls in self.cats.values() for url in urls]
 
-        logger.info("Discovering Targul Cartii URLs from %d categories", len(all_cat_urls))
+        logger.info(
+            "Discovering Targul Cartii URLs from %d categories", len(all_cat_urls)
+        )
         for base_cat_url in all_cat_urls:
             try:
                 first_page_url = base_cat_url + TARGUL_CARTII_PAGE_QUERY % 1
@@ -37,7 +47,7 @@ class TargulCartii(BaseBookstore):
                     logger.warning("No HTML for URL discovery page: %s", first_page_url)
                     continue
 
-                soup = BeautifulSoup(html, 'html.parser')
+                soup = BeautifulSoup(html, "html.parser")
                 total_pages_tag = soup.find("span", class_="pagination_total_pages")
                 if not total_pages_tag:
                     urls.append(first_page_url)
@@ -52,7 +62,7 @@ class TargulCartii(BaseBookstore):
         logger.info("Discovered %d Targul Cartii URLs", len(urls))
         return urls
 
-    def get_books(self, urls=None):
+    def get_books(self, urls=None) -> None:
         """Entry point for scraping books."""
         target_urls = urls if urls is not None else self.get_urls()
         if not target_urls:
@@ -60,15 +70,20 @@ class TargulCartii(BaseBookstore):
             return
 
         logger.info("Scraping %d pages from Targul Cartii", len(target_urls))
-        self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=MAX_CONCURRENCY)
+        self.scrape_urls(
+            target_urls,
+            self._parse_page,
+            mode=ScrapeMode.STEALTH,
+            max_concurrency=MAX_CONCURRENCY,
+        )
 
-    def _parse_page(self, url, html):
+    def _parse_page(self, url, html) -> None:
         """Parser for a single page of results."""
         if "Pagina cautata nu exista pe acest site!" in html:
             return
 
         try:
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
             product_grid = soup.find(class_="product-grid")
             if not product_grid:
                 return
@@ -83,9 +98,9 @@ class TargulCartii(BaseBookstore):
                     if not title_tag or not price_tag:
                         continue
 
-                    book_url = title_tag.get('href')
+                    book_url = title_tag.get("href")
                     if not book_url.startswith("http"):
-                        book_url = TARGUL_CARTII_BASE_URL.rstrip('/') + book_url
+                        book_url = TARGUL_CARTII_BASE_URL.rstrip("/") + book_url
 
                     title = title_tag.get("title")
                     author = author_tag.get_text().strip() if author_tag else None
@@ -101,12 +116,14 @@ class TargulCartii(BaseBookstore):
                     book = Book(
                         title=title,
                         author=author,
-                        isbn=None, # Will be rated later
+                        isbn=None,  # Will be rated later
                         category=category,
-                        offers=[Offer(TARGUL_CARTII_NAME, book_url, price)]
+                        offers=[Offer(TARGUL_CARTII_NAME, book_url, price)],
                     )
                     self.add_book(book)
                 except Exception as e:
-                    logger.debug("Skipping malformed Targul Cartii row on %s: %s", url, e)
+                    logger.debug(
+                        "Skipping malformed Targul Cartii row on %s: %s", url, e
+                    )
         except Exception as e:
             logger.error("Error parsing page %s: %s", url, e)

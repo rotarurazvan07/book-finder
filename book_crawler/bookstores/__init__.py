@@ -1,6 +1,6 @@
+from .AnticariatUnuBookstore import AnticariatUnu
 from .BaseBookstore import BaseBookstore
 from .TargulCartiiBookstore import TargulCartii
-from .AnticariatUnuBookstore import AnticariatUnu
 
 __all__ = [
     "BaseBookstore",

@@ -47,7 +47,9 @@ class BooksManager(BufferedStorageManager):
             try:
                 self.conn.execute("DELETE FROM books")
                 if not self._buffer.empty:
-                    self._buffer.to_sql("books", self.conn, if_exists="append", index=False)
+                    self._buffer.to_sql(
+                        "books", self.conn, if_exists="append", index=False
+                    )
                 self.conn.commit()
                 self._dirty = False
             except Exception as exc:
@@ -100,7 +102,9 @@ class BooksManager(BufferedStorageManager):
         df["category"] = df["category"].apply(lambda x: [i for i in x if i])
         return df
 
-    def update_rating_callback(self, rowid: int, rating: float, goodreads_url: str) -> None:
+    def update_rating_callback(
+        self, rowid: int, rating: float, goodreads_url: str
+    ) -> None:
         """Updates rating fields in buffer by rowid-like index."""
         if rating is None or goodreads_url is None:
             return
@@ -182,7 +186,9 @@ class BooksManager(BufferedStorageManager):
             buf.at[idx, "category"] = _merge_categories(
                 buf.at[idx, "category"], payload.get("category")
             )
-            buf.at[idx, "rating"] = _max_num(buf.at[idx, "rating"], payload.get("rating"))
+            buf.at[idx, "rating"] = _max_num(
+                buf.at[idx, "rating"], payload.get("rating")
+            )
             buf.at[idx, "goodreads_url"] = _max_text(
                 buf.at[idx, "goodreads_url"], payload.get("goodreads_url")
             )
