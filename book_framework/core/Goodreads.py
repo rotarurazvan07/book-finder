@@ -1,12 +1,12 @@
-import os
 import re
+import math
+from urllib.parse import quote_plus
 from bs4 import BeautifulSoup
 from typing import List, Optional, Tuple, Callable
-from concurrent.futures import ThreadPoolExecutor
 
-from book_framework.utils import log
-from book_framework.WebScraper import WebScraper
-from book_framework.SimilarityEngine import SimilarityEngine
+from scrape_kit import ScrapeMode, SimilarityEngine, get_logger, scrape
+
+logger = get_logger(__name__)
 
 # Constants for Goodreads integration
 GOODREADS_URL = "https://www.goodreads.com/"
@@ -14,97 +14,181 @@ GOODREADS_SEARCH = GOODREADS_URL + "search?q=%s"
 NOT_FOUND_INDICATOR = "looking for a book?"
 REJECTED_GOODREADS_TITLES = ["summary", "review", "preview"]
 
-def getRating(book, similarity_engine: SimilarityEngine) -> Tuple[Optional[float], Optional[str]]:
-    """Searches Goodreads for a book's total weighted rating (rating * count).
-    Attempts search by ISBN first, then by author/title combination.
-    """
-    title = book.title
-    author = getattr(book, 'author', None)
-    isbn = getattr(book, 'isbn', None)
 
-    log(f"Finding rating for {title}")
+def _clean_text(value) -> Optional[str]:
+    """Normalize optional text fields coming from dataframe/json payloads."""
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    if not isinstance(value, str):
+        return str(value)
+    cleaned = value.strip()
+    return cleaned or None
 
-    # 1. Primary Attempt: ISBN
-    if isbn:
+
+def _parse_isbn_page(html_text: str, search_url: str) -> Tuple[Optional[float], Optional[str]]:
+    try:
+        if not html_text or NOT_FOUND_INDICATOR in html_text.lower():
+            return None, None
+        html = BeautifulSoup(html_text, "html.parser")
+        rating_val = html.find("div", class_="RatingStatistics__rating").text.strip()
+        ratings_count_text = html.find("span", {"data-testid": "ratingsCount"}).text.strip()
+        match = re.search(r"\d{1,3}(?:,\d{3})*", ratings_count_text)
+        if not match:
+            return None, None
+        ratings_count = match.group().replace(",", "")
+        return float(rating_val) * float(ratings_count), search_url
+    except (AttributeError, ValueError, TypeError):
+        return None, None
+
+
+def _parse_search_page(
+    html_text: str,
+    title: str,
+    author: Optional[str],
+    similarity_engine: SimilarityEngine,
+) -> Tuple[Optional[float], Optional[str]]:
+    if not html_text or NOT_FOUND_INDICATOR in html_text.lower():
+        return None, None
+
+    try:
+        html = BeautifulSoup(html_text, "html.parser")
+        book_elements = html.find_all("tr", itemtype="http://schema.org/Book")
+    except Exception:
+        return None, None
+
+    for book_elem in book_elements:
         try:
-            search_url = GOODREADS_SEARCH % isbn
-            request_result = WebScraper.fetch(search_url, stealthy_headers=True)
-            if request_result and NOT_FOUND_INDICATOR not in request_result.lower():
-                log(f"ISBN hit: {isbn}")
-                html = BeautifulSoup(request_result, 'html.parser')
-                rating_val = html.find('div', class_='RatingStatistics__rating').text.strip()
-                ratings_count_text = html.find('span', {'data-testid': 'ratingsCount'}).text.strip()
+            gr_title = (
+                book_elem.find("a", class_="bookTitle")
+                .find("span", itemprop="name")
+                .get_text()
+            )
+            gr_author = (
+                book_elem.find("a", class_="authorName")
+                .find("span", itemprop="name")
+                .get_text()
+            )
+        except Exception:
+            continue
 
-                # Extract numeric count, handling thousand separators
-                match = re.search(r'\d{1,3}(?:,\d{3})*', ratings_count_text)
-                if match:
-                    ratings_count = match.group().replace(",", "")
-                    return float(rating_val) * float(ratings_count), search_url
-        except (AttributeError, ValueError, TypeError) as e:
-            log(f"ISBN parse error for {isbn}: {e}")
+        if gr_title.lower() in REJECTED_GOODREADS_TITLES:
+            continue
 
-    # 2. Secondary Attempt: Title and Author searches
-    search_queries = []
-    if author:
-        search_queries.append(f"{author} {title}")
-    search_queries.append(title)
+        matched, _ = similarity_engine.is_similar(title, gr_title)
+        if matched and author and gr_author:
+            matched, _ = similarity_engine.is_similar(author, gr_author)
+        if not matched:
+            continue
 
-    for query in search_queries:
         try:
-            search_url = GOODREADS_SEARCH % query.replace(" ", "%20")
-            request_result = WebScraper.fetch(search_url, stealthy_headers=True)
-
-            if not request_result or NOT_FOUND_INDICATOR in request_result.lower():
+            minirating_text = book_elem.find("span", class_="minirating").text.strip()
+            rating_match = re.search(r"(\d+\.\d+)", minirating_text)
+            count_match = re.search(r"(\d{1,3}(?:,\d{3})*) ratings?$", minirating_text)
+            if not (rating_match and count_match):
                 continue
+            rating_val = rating_match.group(1)
+            ratings_count = count_match.group(1).replace(",", "")
+            book_path = book_elem.find("a")["href"]
+            return float(rating_val) * float(ratings_count), GOODREADS_URL + book_path
+        except Exception:
+            continue
 
-            html = BeautifulSoup(request_result, 'html.parser')
-            book_elements = html.find_all('tr', itemtype='http://schema.org/Book')
-
-            for book_elem in book_elements:
-                gr_title = book_elem.find('a', class_='bookTitle').find('span', itemprop='name').get_text()
-                gr_author = book_elem.find('a', class_='authorName').find('span', itemprop='name').get_text()
-
-                if gr_title.lower() in REJECTED_GOODREADS_TITLES:
-                    continue
-
-                # Title match is required
-                matched, _ = similarity_engine.is_similar(title, gr_title)
-
-                # Author match is secondary validation
-                if matched and author and gr_author:
-                    matched, _ = similarity_engine.is_similar(author, gr_author)
-
-                if matched:
-                    # Extract rating and count from 'minirating' block: e.g. "4.21 avg rating — 1,234 ratings"
-                    minirating_text = book_elem.find('span', class_='minirating').text.strip()
-                    rating_match = re.search(r'(\d+\.\d+)', minirating_text)
-                    count_match = re.search(r'(\d{1,3}(?:,\d{3})*) ratings?$', minirating_text)
-
-                    if rating_match and count_match:
-                        rating_val = rating_match.group(1)
-                        ratings_count = count_match.group(1).replace(",", "")
-                        book_path = book_elem.find('a')['href']
-                        return float(rating_val) * float(ratings_count), GOODREADS_URL + book_path
-
-        except (AttributeError, ValueError, TypeError, KeyError) as e:
-            log(f"Query search error for '{query}': {e}")
-
-    log(f"Couldn't find rating on goodreads for {title}")
     return None, None
 
 
-def rateBooks(books: List, update_rating_callback: Callable):
-    """Orchestrates multi-threaded rating updates for a list of books."""
-    similarity_engine = SimilarityEngine()
-    max_workers = 2 # Keep it low to avoid aggressive blocks
+def _book_queries(book) -> list[tuple[str, str]]:
+    title = _clean_text(getattr(book, "title", None))
+    author = _clean_text(getattr(book, "author", None))
+    isbn = _clean_text(getattr(book, "isbn", None))
 
-    def _thread_worker(book):
+    if not title:
+        return []
+
+    queries: list[tuple[str, str]] = []
+    if isbn:
+        queries.append(("isbn", GOODREADS_SEARCH % quote_plus(str(isbn))))
+    if author:
+        queries.append(("author_title", GOODREADS_SEARCH % quote_plus(f"{author} {title}")))
+    queries.append(("title", GOODREADS_SEARCH % quote_plus(title)))
+    return queries
+
+
+def rateBooks(
+    books: List,
+    update_rating_callback: Callable,
+    similarity_config: Optional[dict] = None,
+):
+    """Rate books by batch-scraping Goodreads search URLs, then parsing results."""
+    if not similarity_config:
+        raise ValueError("similarity_config is required for rateBooks with scrape_kit SimilarityEngine")
+
+    similarity_engine = SimilarityEngine(similarity_config)
+
+    # Build (rowid, urls) plans in priority order, then scrape unique URLs in batch.
+    plans: dict[int, list[tuple[str, str]]] = {}
+    all_urls: list[str] = []
+    seen_urls: set[str] = set()
+
+    for book in books:
         try:
-            rating, gr_url = getRating(book, similarity_engine)
-            # Update the source database via callback
-            update_rating_callback(rowid=book.rowid, rating=rating, goodreads_url=gr_url)
-        except Exception as e:
-            log(f"❌ Critical Error on row {getattr(book, 'rowid', 'unknown')}: {e}")
+            rowid = int(getattr(book, "rowid"))
+        except Exception:
+            logger.warning("Skipping book without valid rowid: %s", getattr(book, "title", "unknown"))
+            continue
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        executor.map(_thread_worker, books)
+        plan = _book_queries(book)
+        plans[rowid] = plan
+        for _, url in plan:
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            all_urls.append(url)
+
+    responses: dict[str, str] = {}
+
+    def _on_html(url: str, html: str) -> None:
+        responses[url] = html
+
+    if all_urls:
+        try:
+            scrape(all_urls, callback=_on_html, mode=ScrapeMode.STEALTH, max_concurrency=8)
+        except Exception as e:
+            logger.warning("STEALTH scrape had errors: %s", e)
+
+    for book in books:
+        try:
+            rowid = int(getattr(book, "rowid"))
+        except Exception as e:
+            logger.error("Invalid rowid on book %s: %s", getattr(book, "title", "unknown"), e)
+            continue
+
+        title = _clean_text(getattr(book, "title", None))
+        author = _clean_text(getattr(book, "author", None))
+        if not title:
+            logger.warning("Skipping row %s because title is missing", rowid)
+            continue
+        logger.info("Evaluating Goodreads rating for %s by %s", title, author)
+
+        rating: Optional[float] = None
+        gr_url: Optional[str] = None
+
+        for query_kind, url in plans.get(rowid, []):
+            html_text = responses.get(url)
+            if not html_text:
+                continue
+
+            if query_kind == "isbn":
+                rating, gr_url = _parse_isbn_page(html_text, url)
+            else:
+                rating, gr_url = _parse_search_page(html_text, title, author, similarity_engine)
+
+            if rating is not None and gr_url:
+                break
+
+        if rating is not None and gr_url:
+            logger.info("Updating rating for %s by %s: %.2f", title, author, rating)
+            update_rating_callback(rowid=rowid, rating=rating, goodreads_url=gr_url)
+        else:
+            logger.info("No rating found for %s by %s", title, author)

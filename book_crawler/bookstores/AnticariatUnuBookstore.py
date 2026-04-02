@@ -1,11 +1,9 @@
-import re
 from bs4 import BeautifulSoup
-import os
-import sys
-from book_crawler.BaseBookstore import BaseBookstore
+from book_crawler.bookstores.BaseBookstore import BaseBookstore
 from book_framework.core.Book import Book, Offer, BookCategory
-from book_framework.utils import log
-from book_framework.WebScraper import WebScraper, ScrapeMode
+from scrape_kit import ScrapeMode, fetch, get_logger
+
+logger = get_logger(__name__)
 
 ANTICARIAT_UNU_BASE_URL = "https://www.anticariat-unu.ro/"
 ANTICARIAT_UNU_NAME = "Anticariat Unu"
@@ -58,11 +56,15 @@ class AnticariatUnu(BaseBookstore):
         urls = []
         all_cat_urls = [url for urls in self.cats.values() for url in urls]
 
+        logger.info("Discovering Anticariat Unu URLs from %d categories", len(all_cat_urls))
         for base_cat_url in all_cat_urls:
             try:
-                # Get the last page info using FAST fetch
-                resp = WebScraper.fetch(base_cat_url + ANTICARIAT_UNU_PAGE_QUERY % 0)
+                resp = fetch(
+                    base_cat_url + ANTICARIAT_UNU_PAGE_QUERY % 0,
+                    stealthy_headers=True,
+                )
                 if not resp:
+                    logger.warning("No HTML for URL discovery page: %s", base_cat_url)
                     continue
 
                 soup = BeautifulSoup(resp, 'html.parser')
@@ -78,7 +80,10 @@ class AnticariatUnu(BaseBookstore):
 
                 while low <= high:
                     mid = (low + high) // 2
-                    resp_mid = WebScraper.fetch(base_cat_url + (ANTICARIAT_UNU_PAGE_QUERY % (mid * 30)))
+                    resp_mid = fetch(
+                        base_cat_url + (ANTICARIAT_UNU_PAGE_QUERY % (mid * 30)),
+                        stealthy_headers=True,
+                    )
                     if not resp_mid:
                         high = mid - 1
                         continue
@@ -98,18 +103,19 @@ class AnticariatUnu(BaseBookstore):
                     urls.append(base_cat_url + (ANTICARIAT_UNU_PAGE_QUERY % (i * 30)))
 
             except Exception as e:
-                print(f"❌ Error getting URLs for {base_cat_url}: {e}", file=sys.stderr)
+                logger.error("Error getting URLs for %s: %s", base_cat_url, e)
 
+        logger.info("Discovered %d Anticariat Unu URLs", len(urls))
         return urls
 
     def get_books(self, urls=None):
         """Entry point for scraping books."""
         target_urls = urls if urls is not None else self.get_urls()
         if not target_urls:
-            print("⚠️ No URLs found for Anticariat Unu.")
+            logger.warning("No URLs found for Anticariat Unu")
             return
 
-        print(f"🚀 Scraping {len(target_urls)} pages from Anticariat Unu...")
+        logger.info("Scraping %d pages from Anticariat Unu", len(target_urls))
         # Concurrency 10-20
         self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=1)
 
@@ -169,6 +175,6 @@ class AnticariatUnu(BaseBookstore):
                     )
                     self.add_book(book)
                 except Exception as e:
-                    pass
+                    logger.debug("Skipping malformed Anticariat Unu row on %s: %s", url, e)
         except Exception as e:
-            log(f"Error parsing page {url}: {e}")
+            logger.error("Error parsing page %s: %s", url, e)

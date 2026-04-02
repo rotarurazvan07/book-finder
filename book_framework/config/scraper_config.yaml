@@ -1,0 +1,39 @@
+# scrape_kit/scraper_config.yaml
+# ────────────────────────────────────────────────────────────────────────────
+# Loaded automatically by WebFetcher.configure(config_path).
+# Key name must match the config_key argument (default: "scraper_config").
+#
+# Usage in your project:
+#   WebFetcher.configure("path/to/config_dir")
+#   html = fetch("https://example.com")        # module-level proxy
+#
+# Or copy + customise per-project to override indicators.
+
+scraper_config:
+
+  retry_indicators:
+    - "403 Forbidden"
+    # - "Access Denied"
+    # - "429 Too Many Requests"
+    # - "Too Many Requests"
+    # - "rate limit exceeded"
+    # - "rate limited"
+    # - "Request throttled"
+    # - "Service Unavailable"
+    # - "503 Service Unavailable"
+    # - "Temporarily Unavailable"
+    # - "overloaded"
+    # - "quota exceeded"
+    # - "Just a moment"
+    # - "Checking your browser"
+    # - "verify you are a human"
+
+  block_indicators:
+    - "Just a moment..."
+    # - "cf-browser-verification"
+    # - "Access Denied"
+    # - "Checking your browser"
+    # - "verify you are a human"
+    # - "403 Forbidden"
+    # - "429 Too Many Requests"
+    # - "Attention Required!"

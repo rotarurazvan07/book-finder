@@ -1,7 +1,9 @@
 from abc import abstractmethod, ABC
 from typing import Callable
 
-from book_framework.WebScraper import WebScraper, ScrapeMode
+from scrape_kit import ScrapeMode, get_logger, scrape
+
+logger = get_logger(__name__)
 
 class BaseBookstore(ABC):
     def __init__(self, add_book_callback: Callable):
@@ -24,13 +26,21 @@ class BaseBookstore(ABC):
 
     def scrape_urls(self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1):
         """Scrape URLs with concurrency, calling callback(url, html) for each page."""
-        WebScraper.scrape(urls, callback, mode=mode, max_concurrency=max_concurrency)
+        logger.info(
+            "Starting scrape for %d URLs (mode=%s, concurrency=%d)",
+            len(urls),
+            mode,
+            max_concurrency,
+        )
+        scrape(urls, callback, mode=mode, max_concurrency=max_concurrency)
+        logger.info("Finished scrape batch")
 
     def add_book(self, book) -> bool:
         """Add a book via callback."""
         try:
             self.add_book_callback(book)
+            logger.info("Book added: %s by %s", book.title, book.author)
             return True
         except Exception as e:
-            print(f"Error while adding book: {e}")
+            logger.error("Error while adding book: %s", e)
             return False

@@ -1,10 +1,9 @@
 from bs4 import BeautifulSoup
-import os
-import sys
-from book_crawler.BaseBookstore import BaseBookstore
+from book_crawler.bookstores.BaseBookstore import BaseBookstore
 from book_framework.core.Book import Book, Offer, BookCategory
-from book_framework.utils import log
-from book_framework.WebScraper import WebScraper, ScrapeMode
+from scrape_kit import ScrapeMode, fetch, get_logger
+
+logger = get_logger(__name__)
 
 TARGUL_CARTII_BASE_URL = "https://www.targulcartii.ro/"
 TARGUL_CARTII_NAME = "Targul Cartii"
@@ -28,12 +27,13 @@ class TargulCartii(BaseBookstore):
         urls = []
         all_cat_urls = [url for urls in self.cats.values() for url in urls]
 
+        logger.info("Discovering Targul Cartii URLs from %d categories", len(all_cat_urls))
         for base_cat_url in all_cat_urls:
             try:
-                # Use WebScraper.fetch for initial discovery
                 first_page_url = base_cat_url + TARGUL_CARTII_PAGE_QUERY % 1
-                html = WebScraper.fetch(first_page_url)
+                html = fetch(first_page_url, stealthy_headers=True)
                 if not html:
+                    logger.warning("No HTML for URL discovery page: %s", first_page_url)
                     continue
 
                 soup = BeautifulSoup(html, 'html.parser')
@@ -46,18 +46,19 @@ class TargulCartii(BaseBookstore):
                 for i in range(max_pages):
                     urls.append(base_cat_url + TARGUL_CARTII_PAGE_QUERY % (i + 1))
             except Exception as e:
-                print(f"❌ Error getting URLs for {base_cat_url}: {e}", file=sys.stderr)
+                logger.error("Error getting URLs for %s: %s", base_cat_url, e)
 
+        logger.info("Discovered %d Targul Cartii URLs", len(urls))
         return urls
 
     def get_books(self, urls=None):
         """Entry point for scraping books."""
         target_urls = urls if urls is not None else self.get_urls()
         if not target_urls:
-            print("⚠️ No URLs found for Targul Cartii.")
+            logger.warning("No URLs found for Targul Cartii")
             return
 
-        print(f"🚀 Scraping {len(target_urls)} pages from Targul Cartii...")
+        logger.info("Scraping %d pages from Targul Cartii", len(target_urls))
         # Targul Cartii is generally fast and doesn't block heavily, but we'll use concurrency 10-20
         self.scrape_urls(target_urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=1)
 
@@ -106,7 +107,6 @@ class TargulCartii(BaseBookstore):
                     )
                     self.add_book(book)
                 except Exception as e:
-                    # Silent catch for individual items to keep scraper running
-                    pass
+                    logger.debug("Skipping malformed Targul Cartii row on %s: %s", url, e)
         except Exception as e:
-            log(f"Error parsing page {url}: {e}")
+            logger.error("Error parsing page %s: %s", url, e)
