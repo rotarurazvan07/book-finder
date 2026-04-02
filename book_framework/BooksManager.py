@@ -18,7 +18,7 @@ class BooksManager(BufferedStorageManager):
     def __init__(self, db_path: str) -> None:
         super().__init__(db_path, "books")
 
-    # ── Schema ────────────────────────────────────────────────────────────────
+    # ── Schema ──────────────────────────────────────────────────────────────
 
     def _create_tables(self) -> None:
         with self.db_lock:
@@ -54,7 +54,7 @@ class BooksManager(BufferedStorageManager):
             except Exception as exc:
                 raise StorageError(f"BooksManager flush failed: {exc}") from exc
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # ── Public API ─────────────────────────────────────────────────────────────
 
     def add_book(self, book: Book) -> None:
         """Saves every offer in the Book object as a row in the buffer."""
@@ -123,105 +123,71 @@ class BooksManager(BufferedStorageManager):
 
     @classmethod
     def merge_databases(cls, input_dir: str, output_file: str) -> None:
-        """Merge chunk DBs into a fresh output DB, deduplicated by URL."""
+        """Merge chunk DBs using bulk staging + SQL deduplication + category cleanup."""
         if os.path.exists(output_file):
             os.remove(output_file)
 
         manager = cls(output_file)
         manager.reset_db()
-        buf0 = manager.ensure_buffer()
-        url_to_idx: dict[str, int] = (
-            {str(u): int(i) for i, u in buf0["url"].items() if pd.notna(u)}
-            if not buf0.empty
-            else {}
-        )
-
-        processed = 0
-        deduped = 0
-
-        def _merge_categories(existing: str | None, incoming: str | None) -> str | None:
-            ordered = OrderedDict()
-            for raw in (existing, incoming):
-                if not raw:
+        
+        # Step 1: Bulk merge all chunks into staging table (fast)
+        report = super(BooksManager, manager).merge_databases(input_dir, "books")
+        
+        # Step 2: Deduplicate from staging into books using SQL aggregation
+        with manager.db_lock:
+            manager.conn.execute("""
+                INSERT INTO books (isbn, title, author, category, rating, goodreads_url, store, url, price)
+                SELECT 
+                    MAX(isbn),
+                    MAX(title),
+                    MAX(author),
+                    GROUP_CONCAT(category, '|'),  -- Use pipe delimiter temporarily
+                    MAX(rating),
+                    MAX(goodreads_url),
+                    MAX(store),
+                    url,
+                    MIN(price)
+                FROM staging_books
+                WHERE url IS NOT NULL 
+                  AND title IS NOT NULL 
+                  AND TRIM(title) != ''
+                GROUP BY url
+            """)
+            manager.conn.commit()
+            
+            # Step 3: Fix categories in-place (single pass over final deduplicated data)
+            rows = manager.conn.execute("SELECT rowid, category FROM books WHERE category IS NOT NULL").fetchall()
+            for row_id, cat_str in rows:
+                if not cat_str:
                     continue
-                for token in str(raw).split(","):
-                    item = token.strip()
-                    if item:
-                        ordered[item] = True
-            if not ordered:
-                return None
-            return ", ".join(ordered.keys())
-
-        def _max_text(a: str | None, b: str | None) -> str | None:
-            values = [v for v in (a, b) if v not in (None, "")]
-            if not values:
-                return None
-            return max(values)
-
-        def _max_num(a, b):
-            vals = [v for v in (a, b) if v is not None]
-            if not vals:
-                return None
-            return max(vals)
-
-        def _min_num(a, b):
-            vals = [v for v in (a, b) if v is not None]
-            if not vals:
-                return None
-            return min(vals)
-
-        def _row(row) -> None:
-            nonlocal processed, deduped
-            processed += 1
-            payload = dict(row)
-            url = payload.get("url")
-            if not url:
-                return
-            title = payload.get("title")
-            if not isinstance(title, str) or not title.strip():
-                return
-
-            buf = manager.ensure_buffer()
-            idx = url_to_idx.get(url)
-            if idx is None:
-                buf.loc[len(buf)] = payload
-                manager._dirty = True
-                idx = len(buf) - 1
-                url_to_idx[url] = idx
-                return
-
-            deduped += 1
-            buf.at[idx, "isbn"] = _max_text(buf.at[idx, "isbn"], payload.get("isbn"))
-            buf.at[idx, "category"] = _merge_categories(
-                buf.at[idx, "category"], payload.get("category")
-            )
-            buf.at[idx, "rating"] = _max_num(
-                buf.at[idx, "rating"], payload.get("rating")
-            )
-            buf.at[idx, "goodreads_url"] = _max_text(
-                buf.at[idx, "goodreads_url"], payload.get("goodreads_url")
-            )
-            buf.at[idx, "price"] = _min_num(buf.at[idx, "price"], payload.get("price"))
-            manager._dirty = True
-
-        report = manager.merge_row_by_row(
-            input_dir,
-            "books",
-            row_callback=_row,
-            flush_callback=manager.flush,
-            read_batch_size=2000,
-            flush_every_rows=10000,
-        )
-        manager.flush()
+                # Split by both | (from GROUP_CONCAT) and , (within each field)
+                tokens = set()
+                for segment in cat_str.split('|'):
+                    for token in segment.split(','):
+                        clean = token.strip()
+                        if clean:
+                            tokens.add(clean)
+                
+                clean_category = ", ".join(sorted(tokens)) if tokens else None
+                manager.conn.execute(
+                    "UPDATE books SET category = ? WHERE rowid = ?",
+                    (clean_category, row_id)
+                )
+            
+            manager.conn.commit()
+            
+            # Cleanup staging table
+            manager.conn.execute("DROP TABLE IF EXISTS staging_books")
+            manager.conn.commit()
+        
         manager.close()
-
+        
         if report.errors:
             for err in report.errors:
                 logger.warning("Merge chunk warning: %s", err)
+        
         logger.info(
-            "FINISHED merge: processed=%d, chunks=%d, deduped=%d, skipped=%d",
-            processed,
+            "FINISHED merge: chunks=%d, skipped=%d",
             report.processed_chunks,
-            deduped,
             report.skipped_chunks,
         )
