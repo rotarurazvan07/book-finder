@@ -38,6 +38,20 @@ class BaseBookstore(ABC):
     def add_book(self, book) -> bool:
         """Add a book via callback."""
         try:
+            title = getattr(book, "title", None)
+            if not isinstance(title, str) or not title.strip():
+                logger.warning(
+                    "Skipping invalid book with missing title (author=%s, offers=%s)",
+                    getattr(book, "author", None),
+                    len(getattr(book, "offers", []) or []),
+                )
+                return False
+
+            offers = getattr(book, "offers", None) or []
+            if not offers:
+                logger.warning("Skipping book without offers: %s", title.strip())
+                return False
+
             self.add_book_callback(book)
             logger.info("Book added: %s by %s", book.title, book.author)
             return True

@@ -57,6 +57,11 @@ class BooksManager(BufferedStorageManager):
 
     def add_book(self, book: Book) -> None:
         """Saves every offer in the Book object as a row in the buffer."""
+        title = getattr(book, "title", None)
+        if not isinstance(title, str) or not title.strip():
+            logger.warning("Skipping book with invalid title: %s", title)
+            return
+
         self.ensure_buffer()
         category = getattr(book.category, "value", None)
 
@@ -64,7 +69,7 @@ class BooksManager(BufferedStorageManager):
             self.insert(
                 {
                     "isbn": book.isbn,
-                    "title": book.title,
+                    "title": title.strip(),
                     "author": book.author,
                     "category": category,
                     "rating": book.rating,
