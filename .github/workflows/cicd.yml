@@ -66,12 +66,12 @@ jobs:
             --remove-all-unused-imports \
             --remove-unused-variables \
             --exclude .venv,__pycache__ \
-            book_crawler/ book_framework/ dashboard.py tests/
+            book_crawler/ book_framework/ book_dashboard/ tests/
 
       - name: pyupgrade — modernise syntax to Python 3.10+
         run: |
           find book_crawler book_framework tests -name "*.py" -print | xargs pyupgrade --py310-plus || true
-          pyupgrade --py310-plus dashboard.py || true
+          pyupgrade --py310-plus book_dashboard/ || true
 
       - name: autotyping — infer and add trivial return type annotations
         run: |
@@ -79,16 +79,16 @@ jobs:
             --none-return \
             --scalar-return \
             --bool-param \
-            book_crawler/ book_framework/ dashboard.py
+            book_crawler/ book_framework/ book_dashboard/
 
       - name: isort — sort imports
-        run: isort book_crawler/ book_framework/ dashboard.py tests/
+        run: isort book_crawler/ book_framework/ book_dashboard/ tests/
 
       - name: ruff format
-        run: ruff format book_crawler/ book_framework/ dashboard.py tests/
+        run: ruff format book_crawler/ book_framework/ book_dashboard/ tests/
 
       - name: ruff lint --fix
-        run: ruff check --fix --unsafe-fixes --output-format=github book_crawler/ book_framework/ dashboard.py tests/ || true
+        run: ruff check --fix --unsafe-fixes --output-format=github book_crawler/ book_framework/ book_dashboard/ tests/ || true
 
       - name: Commit fixes (if any)
         run: |
@@ -124,12 +124,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: |
-            setup/requirements-dashboard.txt
             setup/requirements-scrape.txt
 
       - name: Install dependencies
         run: |
-          pip install -r setup/requirements-dashboard.txt
           pip install -r setup/requirements-scrape.txt
           pip install pytest pytest-cov pytest-xdist pytest-timeout
 
@@ -184,12 +182,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: |
-            setup/requirements-dashboard.txt
             setup/requirements-scrape.txt
 
       - name: Install dependencies and audit tools
         run: |
-          pip install -r setup/requirements-dashboard.txt
           pip install -r setup/requirements-scrape.txt
           pip install bandit pip-audit radon vulture
 
@@ -199,7 +195,7 @@ jobs:
             --format json \
             --output bandit-report.json || true
           bandit -r book_crawler/ book_framework/ tests/ -ll -ii || true
-          bandit dashboard.py -ll -ii || true
+          bandit book_dashboard/ -ll -ii || true
 
       - name: pip-audit — CVE scan
         run: |
@@ -209,16 +205,16 @@ jobs:
       - name: radon — complexity report
         run: |
           echo "── Cyclomatic Complexity ────────────────────────────────────"
-          radon cc book_crawler/ book_framework/ tests/ dashboard.py --show-complexity --average --json \
+          radon cc book_crawler/ book_framework/ tests/ book_dashboard/ --show-complexity --average --json \
             > radon-cc-report.json || true
-          radon cc book_crawler/ book_framework/ tests/ dashboard.py --min C --show-complexity --average || true
+          radon cc book_crawler/ book_framework/ tests/ book_dashboard/ --min C --show-complexity --average || true
           echo ""
           echo "── Maintainability Index ────────────────────────────────────"
-          radon mi book_crawler/ book_framework/ tests/ dashboard.py --json > radon-mi-report.json || true
-          radon mi book_crawler/ book_framework/ tests/ dashboard.py --show --min B || true
+          radon mi book_crawler/ book_framework/ tests/ book_dashboard/ --json > radon-mi-report.json || true
+          radon mi book_crawler/ book_framework/ tests/ book_dashboard/ --show --min B || true
 
       - name: vulture — dead code detection
-        run: vulture book_crawler/ book_framework/ tests/ dashboard.py --min-confidence 80 | tee vulture-report.txt || true
+        run: vulture book_crawler/ book_framework/ tests/ book_dashboard/ --min-confidence 80 | tee vulture-report.txt || true
 
       - name: Upload all audit reports
         if: always()
