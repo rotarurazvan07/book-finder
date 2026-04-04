@@ -17,7 +17,7 @@ COPY book_framework/ ./book_framework/
 
 # 3. Copy the actual backend source
 COPY book_dashboard/backend/ .
-COPY config/ .config/
+COPY config/ config/
 
 # Ensure the app can see both folders
 ENV PYTHONPATH=/app

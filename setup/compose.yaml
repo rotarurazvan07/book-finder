@@ -10,6 +10,7 @@ services:
     restart: unless-stopped
     environment:
       - BOOKS_DB_PATH=/app/workspace/data/final_books.db
+      - CONFIG_DIR=/app/workspace/config
       - PYTHONPATH=/app
     command:
       sh -c "mkdir -p /app/workspace/config && mkdir -p /app/workspace/data &&
