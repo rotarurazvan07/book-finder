@@ -24,7 +24,7 @@ jobs:
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m book_crawler.crawl --mode "prepare-scrape" --runners "all" --config_dir "book_framework/config")
+          JSON_DATA=$(./venv/bin/python -m book_crawler.crawl --mode "prepare-scrape" --runners "all" --config_dir "config")
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
   scrape:
@@ -46,7 +46,7 @@ jobs:
           ./venv/bin/python -m book_crawler.crawl --mode "scrape" \
             --books_db_path "${{ matrix.books_db_path }}" \
             --urls "${{ matrix.urls }}" \
-            --config_dir "book_framework/config"
+            --config_dir "config"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -74,7 +74,7 @@ jobs:
           ./venv/bin/python -m book_crawler.crawl --mode merge \
             --chunks_dir "." \
             --books_db_path "scrape_merged.db" \
-            --config_dir "book_framework/config"
+            --config_dir "config"
       - name: Upload Final Database
         uses: actions/upload-artifact@v4
         with:
@@ -140,7 +140,7 @@ jobs:
           ./venv/bin/python -m book_crawler.crawl --mode rate \
             --urls "${{ matrix.urls }}" \
             --books_db_path "${{ matrix.books_db_path }}" \
-            --config_dir "book_framework/config"
+            --config_dir "config"
 
       - name: Upload Result Chunk
         uses: actions/upload-artifact@v4

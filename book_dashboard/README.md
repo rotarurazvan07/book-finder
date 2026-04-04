@@ -9,10 +9,9 @@ book-finder/
 │   ├── backend/             FastAPI (Python)
 │   ├── frontend/            React 18 + TypeScript + Vite
 │   ├── docker-compose.yml
-│   └── .env.example
 ├── book_framework/          shared Python library (used by backend)
 ├── book_crawler/            scraping jobs
-└── merge.db                 SQLite database produced by the crawler
+└── final_books.db           SQLite database produced by the crawler
 ```
 
 ---

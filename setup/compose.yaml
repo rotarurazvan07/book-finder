@@ -11,6 +11,9 @@ services:
     environment:
       - BOOKS_DB_PATH=/app/workspace/data/final_books.db
       - PYTHONPATH=/app
+    command:
+      sh -c "mkdir -p /app/workspace/config && mkdir -p /app/workspace/data &&
+             cp -r /app/config/. /app/workspace/config/"
     volumes:
       - ./workspace:/app/workspace
       - /etc/localtime:/etc/localtime:ro
@@ -36,6 +39,7 @@ services:
     ports:
       - "3001:80"
     volumes:
+      - ./workspace:/app/workspace
       - /etc/localtime:/etc/localtime:ro
     depends_on:
       backend:
