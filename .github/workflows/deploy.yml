@@ -3,9 +3,6 @@ name: Build and Publish Dashboard Images
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - "book_dashboard/**"
-      - "book_framework/**"   # backend embeds this; rebuild on any change
 
 env:
   REGISTRY: ghcr.io
