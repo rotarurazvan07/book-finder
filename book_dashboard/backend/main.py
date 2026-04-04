@@ -67,10 +67,14 @@ def get_df() -> pd.DataFrame:
         # Ensure category is always a list
         if "category" in _df_cache.columns:
             _df_cache["category"] = _df_cache["category"].apply(
-                lambda x: x if isinstance(x, list) else (
-                    [s.strip() for s in str(x).split(",") if s.strip()]
-                    if x and not (isinstance(x, float) and math.isnan(x))
-                    else []
+                lambda x: (
+                    x
+                    if isinstance(x, list)
+                    else (
+                        [s.strip() for s in str(x).split(",") if s.strip()]
+                        if x and not (isinstance(x, float) and math.isnan(x))
+                        else []
+                    )
                 )
             )
     return _df_cache
@@ -102,19 +106,20 @@ def _apply_filters(
 ) -> pd.DataFrame:
     if search:
         q = search.strip()
-        mask = (
-            df["title"].str.contains(q, case=False, na=False)
-            | df["author"].str.contains(q, case=False, na=False)
-        )
+        mask = df["title"].str.contains(q, case=False, na=False) | df[
+            "author"
+        ].str.contains(q, case=False, na=False)
         df = df[mask]
 
     if categories:
         cats_lower = [c.lower() for c in categories]
         df = df[
             df["category"].apply(
-                lambda x: any(c.lower() in cats_lower for c in x)
-                if isinstance(x, list)
-                else False
+                lambda x: (
+                    any(c.lower() in cats_lower for c in x)
+                    if isinstance(x, list)
+                    else False
+                )
             )
         ]
 
@@ -152,9 +157,13 @@ def get_books(
     sort_dir: str = Query("asc"),
 ):
     df = get_df()
-    filtered = _apply_filters(df, search, categories, stores, min_rating, min_price, max_price)
+    filtered = _apply_filters(
+        df, search, categories, stores, min_rating, min_price, max_price
+    )
 
-    col = sort_by if sort_by in _SORT_COLUMNS and sort_by in filtered.columns else "title"
+    col = (
+        sort_by if sort_by in _SORT_COLUMNS and sort_by in filtered.columns else "title"
+    )
     ascending = sort_dir != "desc"
     filtered = filtered.sort_values(col, ascending=ascending, na_position="last")
 
@@ -177,9 +186,7 @@ def get_books(
 @app.get("/api/filters")
 def get_filters():
     df = get_df()
-    all_cats: list[str] = sorted(
-        df["category"].explode().dropna().unique().tolist()
-    )
+    all_cats: list[str] = sorted(df["category"].explode().dropna().unique().tolist())
     all_stores: list[str] = sorted(df["store"].dropna().unique().tolist())
     price_min = float(df["price"].min()) if not df.empty else 0.0
     price_max = float(df["price"].max()) if not df.empty else 1000.0
@@ -210,12 +217,9 @@ def get_insights():
 
     # Top rated: sort descending by raw rating field (weighted score)
     rated = df[df["rating"].notna() & (df["rating"] > 0)].copy()
-    top_rated = (
-        rated.nlargest(10, "rating")[
-            ["title", "author", "rating", "goodreads_url"]
-        ]
-        .to_dict("records")
-    )
+    top_rated = rated.nlargest(10, "rating")[
+        ["title", "author", "rating", "goodreads_url"]
+    ].to_dict("records")
     top_rated = [_serialize(r) for r in top_rated]
 
     return {
@@ -229,7 +233,7 @@ def get_insights():
 
 class RecommendationRequest(BaseModel):
     budget: float
-    subject: str = "Any"          # maps to a category substring
+    subject: str = "Any"  # maps to a category substring
     source: str = "Any Available"  # maps to store name
 
 
@@ -244,9 +248,11 @@ def get_recommendations(req: RecommendationRequest):
     if subj and subj.lower() not in ("any", "any available", ""):
         pool = pool[
             pool["category"].apply(
-                lambda x: any(subj.lower() in c.lower() for c in x)
-                if isinstance(x, list)
-                else False
+                lambda x: (
+                    any(subj.lower() in c.lower() for c in x)
+                    if isinstance(x, list)
+                    else False
+                )
             )
         ]
 
@@ -290,4 +296,6 @@ def get_recommendations(req: RecommendationRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("book_dashboard.backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "book_dashboard.backend.main:app", host="0.0.0.0", port=8000, reload=True
+    )
