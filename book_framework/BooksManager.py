@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-
 import pandas as pd
 from scrape_kit import BufferedStorageManager, get_logger
-from scrape_kit.errors import StorageError
 
 from .core.Book import Book
 
@@ -35,7 +33,6 @@ class BooksManager(BufferedStorageManager):
             """)
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_title ON books(title)")
             self.conn.commit()
-
 
     # ── Public API ─────────────────────────────────────────────────────────────
 

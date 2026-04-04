@@ -1,16 +1,7 @@
-# Raspberry Pi Deployment Guide
+# Deployment Guide
 
-Running Book Finder Dashboard on a Raspberry Pi (arm64) using pre-built
+Running Book Finder Dashboard using pre-built
 GitHub Container Registry images.
-
----
-
-## Prerequisites
-
-- Raspberry Pi 4 or 5 (arm64), running Raspberry Pi OS 64-bit (Bookworm recommended)
-- Internet access to pull images from `ghcr.io`
-- The `final_books.db` file already on the Pi (copy it once, then update it
-  whenever the GitHub Actions scrape workflow finishes)
 
 ---
 
@@ -30,20 +21,7 @@ docker compose version
 
 ---
 
-## 2 — Make the images public (do this once on GitHub)
-
-By default GHCR packages are private. You need to make both packages public
-so the Pi can pull them without credentials, OR authenticate (see step 3b).
-
-1. Go to `https://github.com/YOUR_USERNAME?tab=packages`
-2. Click **book-finder-backend** → Settings → Change visibility → **Public**
-3. Repeat for **book-finder-frontend**
-
-> Skip this step if you prefer to authenticate (see step 3b).
-
----
-
-## 3 — Set up the deployment folder
+## 2 — Set up the deployment folder
 
 ```bash
 # Pick wherever you want — home directory is fine
@@ -93,7 +71,7 @@ services:
 
 ---
 
-## 3b — (Optional) Authenticate if images are private
+## 2b — (Optional) Authenticate if images are private
 
 ```bash
 # Create a GitHub Personal Access Token with read:packages scope at:
@@ -104,7 +82,7 @@ echo "YOUR_GITHUB_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --passwo
 
 ---
 
-## 4 — Copy the database to the Pi
+## 3 — Copy the database to the Pi
 
 **From your PC** (run this on your PC, not the Pi):
 
@@ -121,7 +99,7 @@ cp /media/pi/USB_DRIVE/final_books.db ~/book-finder/books.db
 
 ---
 
-## 5 — Pull and start
+## 4 — Pull and start
 
 ```bash
 cd ~/book-finder
@@ -145,7 +123,7 @@ hostname -I | awk '{print $1}'
 
 ---
 
-## 6 — Enable autostart on boot
+## 5 — Enable autostart on boot
 
 Docker's `restart: unless-stopped` policy already handles container restarts.
 To make sure Docker itself starts on boot:
@@ -157,7 +135,7 @@ sudo systemctl enable containerd
 
 ---
 
-## 7 — Updating the database
+## 6 — Updating the database
 
 Whenever you run a new scrape and have a fresh `final_books.db`, copy it over
 and restart only the backend:
@@ -172,7 +150,7 @@ docker compose restart backend
 
 ---
 
-## 8 — Updating to a new image version
+## 7 — Updating to a new image version
 
 When you push to `main` on GitHub, Actions rebuilds and pushes new `:latest`
 images automatically. To deploy the update on the Pi:
@@ -203,7 +181,7 @@ To do this **automatically**, add Watchtower to your compose file:
 
 ---
 
-## 9 — Useful commands
+## 8 — Useful commands
 
 ```bash
 # Live logs for both services

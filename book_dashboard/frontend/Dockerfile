@@ -3,21 +3,21 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy lockfiles first for caching
-COPY frontend/package*.json ./
+# 1. Copy local package files (from the same directory as Dockerfile)
+COPY package*.json ./
 RUN npm ci
 
-# Copy source (assuming Dockerfile is in repo root)
-COPY frontend/ .
+# 2. Copy everything else in the current directory
+COPY . .
 RUN npm run build
 
 # Stage 2: Serve
 FROM nginx:1.27-alpine
 
-# Use a custom Nginx config for SPA routing (very important for React Router)
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# 3. Copy the nginx.conf from the current directory
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy build artifacts from builder stage
+# 4. Copy build artifacts from the builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80

@@ -6,18 +6,20 @@ services:
       context: .
       dockerfile: book_dashboard/backend/Dockerfile
     image: ghcr.io/rotarurazvan07/book-finder-backend:latest
+    container_name: book-backend
     restart: unless-stopped
     environment:
-      # We set the runtime path here
       - BOOKS_DB_PATH=/app/workspace/data/final_books.db
       - PYTHONPATH=/app
     volumes:
-      # Map your local workspace folder to the app's workspace
       - ./workspace:/app/workspace
+      - /etc/localtime:/etc/localtime:ro
     expose:
       - "8000"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=book-stack"
     healthcheck:
-      # Simplified healthcheck for 2026
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/filters || exit 1"]
       interval: 10s
       timeout: 5s
@@ -29,9 +31,25 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     image: ghcr.io/rotarurazvan07/book-finder-frontend:latest
+    container_name: book-frontend
     restart: unless-stopped
     ports:
       - "3000:80"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     depends_on:
       backend:
         condition: service_healthy
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=book-stack"
+
+  book-updater:
+    image: containrrr/watchtower:1.7.1
+    container_name: book-updater
+    restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup --scope book-stack --label-enable
