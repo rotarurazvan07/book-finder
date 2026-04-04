@@ -1,0 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        font-size: 15px;
+    }
+
+    body {
+        @apply bg-page text-ink font-sans;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+}
+
+@layer components {
+
+    /* Nav link */
+    .nav-link {
+        @apply relative text-xs font-sans font-medium tracking-widest uppercase text-mist transition-colors duration-150 hover:text-ink;
+    }
+
+    .nav-link.active {
+        @apply text-ink;
+    }
+
+    .nav-link.active::after {
+        content: '';
+        @apply absolute -bottom-[1px] left-0 right-0 h-px bg-wine;
+    }
+
+    /* Sidebar filter label */
+    .filter-label {
+        @apply block text-[10px] font-sans font-semibold tracking-[0.14em] uppercase text-mist mb-1.5;
+    }
+
+    /* Input / select base */
+    .field {
+        @apply w-full border border-rule bg-white text-ink font-sans text-sm px-3 py-2 rounded focus:outline-none focus:border-navy placeholder:text-rule transition-colors duration-100;
+    }
+
+    /* Primary button */
+    .btn-primary {
+        @apply bg-navy text-white font-sans text-xs font-semibold tracking-widest uppercase px-5 py-2.5 rounded hover:bg-ink transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+    }
+
+    /* Ghost button */
+    .btn-ghost {
+        @apply border border-rule text-mist font-sans text-xs font-semibold tracking-widest uppercase px-4 py-2 rounded hover:border-ink hover:text-ink transition-colors duration-150;
+    }
+
+    /* Category pill */
+    .cat-pill {
+        @apply inline-block text-[10px] font-mono tracking-wide uppercase px-1.5 py-0.5 rounded-sm;
+    }
+
+    /* Stat card */
+    .stat-card {
+        @apply bg-white border border-rule rounded p-6;
+    }
+
+    /* Horizontal rule */
+    .h-rule {
+        @apply border-t border-rule;
+    }
+}
+
+/* Thin scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-rule rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-mist;
+}
+
+/* Fade-in animation for page mounts */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.2s ease forwards;
+}

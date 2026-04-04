@@ -287,11 +287,14 @@ def mode_merge(books_db_path: str, chunks_dir: str, config_dir: str) -> None:
         logger.error(f"❌ Not a valid directory: {chunks_dir}")
         sys.exit(1)
 
-    # Initialize SettingsManager locally to match bet-assistant flow.
+    # Initialize SettingsManager locally
     SettingsManager(config_dir)
+    books_manager = BooksManager(books_db_path)
+    books_manager.reset_db()
+    books_manager.merge_databases(chunks_dir)
+    books_manager.close()
 
-    BooksManager.merge_databases(chunks_dir, books_db_path)
-    logger.info(f"✅ Merged into {books_db_path}")
+    logger.info(f"✅ Merged into: {books_db_path}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

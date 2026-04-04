@@ -1,27 +1,37 @@
-services:
-  book-dashboard:
-    image: ghcr.io/rotarurazvan07/book-finder:latest
-    container_name: book-dashboard
-    restart: always
-    environment:
-      - REPO=rotarurazvan07/book-finder
-    command: TODO
-    ports:
-      - "8050:8050"
-    volumes:
-      - ./data:/app/data
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-      - "com.centurylinklabs.watchtower.scope=book-stack"
+name: book-finder-dashboard
 
-  book-updater:
-    image: containrrr/watchtower:1.7.1
-    platform: linux/arm64
-    container_name: book-updater
-    restart: always
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: book_dashboard/backend/Dockerfile
+    image: ghcr.io/rotarurazvan07/book-finder-backend:latest
+    restart: unless-stopped
     environment:
-      - DOCKER_API_VERSION=1.44
+      # We set the runtime path here
+      - BOOKS_DB_PATH=/app/workspace/data/final_books.db
+      - PYTHONPATH=/app
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /home/fir3w4ll/.docker/config.json:/config.json:ro
-    command: --interval 300 --cleanup --scope book-stack
+      # Map your local workspace folder to the app's workspace
+      - ./workspace:/app/workspace
+    expose:
+      - "8000"
+    healthcheck:
+      # Simplified healthcheck for 2026
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/filters || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: ghcr.io/rotarurazvan07/book-finder-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy

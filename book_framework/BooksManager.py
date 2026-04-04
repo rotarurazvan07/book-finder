@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 
 import pandas as pd
 from scrape_kit import BufferedStorageManager, get_logger
@@ -37,21 +36,6 @@ class BooksManager(BufferedStorageManager):
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_title ON books(title)")
             self.conn.commit()
 
-    # ── Flush: preserve schema/indexes ───────────────────────────────────────
-
-    def flush(self) -> None:
-        if not self._dirty:
-            return
-        df = self.ensure_buffer()
-        with self.db_lock:
-            try:
-                self.conn.execute("DELETE FROM books")
-                if not df.empty:
-                    df.to_sql("books", self.conn, if_exists="append", index=False)
-                self.conn.commit()
-                self._dirty = False
-            except Exception as exc:
-                raise StorageError(f"BooksManager flush failed: {exc}") from exc
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -120,68 +104,51 @@ class BooksManager(BufferedStorageManager):
         self.clear_database("books")
         logger.info("Database cleared.")
 
-    @classmethod
-    def merge_databases(cls, input_dir: str, output_file: str) -> None:
+    def merge_databases(self, input_dir: str) -> None:
         """Merge chunk DBs using bulk staging + SQL deduplication + category cleanup."""
-        if os.path.exists(output_file):
-            os.remove(output_file)
-
-        manager = cls(output_file)
-        manager.reset_db()
-
-        # Step 1: Bulk merge all chunks into staging table (fast)
-        report = super(BooksManager, manager).merge_databases(input_dir, "books")
-
-        # Step 2: Deduplicate from staging into books using SQL aggregation
-        with manager.db_lock:
-            manager.conn.execute("""
-                INSERT INTO books (isbn, title, author, category, rating, goodreads_url, store, url, price)
-                SELECT 
-                    MAX(isbn),
-                    MAX(title),
-                    MAX(author),
-                    GROUP_CONCAT(category, '|'),  -- Use pipe delimiter temporarily
-                    MAX(rating),
-                    MAX(goodreads_url),
-                    MAX(store),
-                    url,
-                    MIN(price)
-                FROM staging_books
-                WHERE url IS NOT NULL 
-                  AND title IS NOT NULL 
-                  AND TRIM(title) != ''
+        # Bulk merge + Single SQL step for deduplication and category merging
+        dedup_query = """
+            INSERT INTO books (isbn, title, author, category, rating, goodreads_url, store, url, price)
+            WITH RECURSIVE
+              -- Part 1: Split categories from staging_books by comma
+              split(url, part, rest) AS (
+                SELECT url, '', category || ',' FROM staging_books WHERE category IS NOT NULL
+                UNION ALL
+                SELECT url,
+                       TRIM(substr(rest, 0, instr(rest, ','))),
+                       substr(rest, instr(rest, ',') + 1)
+                FROM split WHERE rest <> ''
+              ),
+              -- Part 2: Extract unique parts per URL
+              unique_cats AS (
+                SELECT url, part FROM split WHERE part <> '' GROUP BY url, part
+              ),
+              -- Part 3: Re-join into a single sorted string
+              merged_cats AS (
+                SELECT url, GROUP_CONCAT(part, ',') as cleaned_category
+                FROM (SELECT url, part FROM unique_cats ORDER BY url, part)
                 GROUP BY url
-            """)
-            manager.conn.commit()
-
-            # Step 3: Fix categories in-place (single pass over final deduplicated data)
-            rows = manager.conn.execute(
-                "SELECT rowid, category FROM books WHERE category IS NOT NULL"
-            ).fetchall()
-            for row_id, cat_str in rows:
-                if not cat_str:
-                    continue
-                # Split by both | (from GROUP_CONCAT) and , (within each field)
-                tokens = set()
-                for segment in cat_str.split("|"):
-                    for token in segment.split(","):
-                        clean = token.strip()
-                        if clean:
-                            tokens.add(clean)
-
-                clean_category = ", ".join(sorted(tokens)) if tokens else None
-                manager.conn.execute(
-                    "UPDATE books SET category = ? WHERE rowid = ?",
-                    (clean_category, row_id),
-                )
-
-            manager.conn.commit()
-
-            # Cleanup staging table
-            manager.conn.execute("DROP TABLE IF EXISTS staging_books")
-            manager.conn.commit()
-
-        manager.close()
+              )
+            SELECT
+                MAX(s.isbn),
+                MAX(s.title),
+                MAX(s.author),
+                m.cleaned_category,
+                MAX(s.rating),
+                MAX(s.goodreads_url),
+                MAX(s.store),
+                s.url,
+                MIN(s.price)
+            FROM staging_books s
+            LEFT JOIN merged_cats m ON s.url = m.url
+            WHERE s.url IS NOT NULL
+              AND s.title IS NOT NULL
+              AND TRIM(s.title) != ''
+            GROUP BY s.url
+        """
+        report = super().merge_databases(
+            input_dir, "books", end_process_query=dedup_query
+        )
 
         if report.errors:
             for err in report.errors:
