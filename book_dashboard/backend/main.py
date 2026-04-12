@@ -20,7 +20,6 @@ import math
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI, Query
@@ -58,10 +57,7 @@ def get_df() -> pd.DataFrame:
     global _manager, _df_cache
     if _df_cache is None:
         if not os.path.exists(DB_PATH):
-            raise FileNotFoundError(
-                f"Database not found at '{DB_PATH}'. "
-                "Set the BOOKS_DB_PATH environment variable."
-            )
+            raise FileNotFoundError(f"Database not found at '{DB_PATH}'. Set the BOOKS_DB_PATH environment variable.")
         _manager = BooksManager(DB_PATH)
         _df_cache = _manager.fetch_all_as_dataframe()
         # Ensure category is always a list
@@ -86,9 +82,7 @@ def _serialize(row: dict) -> dict:
     for k, v in row.items():
         if isinstance(v, list):
             out[k] = v
-        elif isinstance(v, float) and math.isnan(v):
-            out[k] = None
-        elif pd.isna(v) if not isinstance(v, (list, dict, str, bool)) else False:
+        elif isinstance(v, float) and math.isnan(v) or (pd.isna(v) if not isinstance(v, (list, dict, str, bool)) else False):
             out[k] = None
         else:
             out[k] = v
@@ -106,22 +100,12 @@ def _apply_filters(
 ) -> pd.DataFrame:
     if search:
         q = search.strip()
-        mask = df["title"].str.contains(q, case=False, na=False) | df[
-            "author"
-        ].str.contains(q, case=False, na=False)
+        mask = df["title"].str.contains(q, case=False, na=False) | df["author"].str.contains(q, case=False, na=False)
         df = df[mask]
 
     if categories:
         cats_lower = [c.lower() for c in categories]
-        df = df[
-            df["category"].apply(
-                lambda x: (
-                    any(c.lower() in cats_lower for c in x)
-                    if isinstance(x, list)
-                    else False
-                )
-            )
-        ]
+        df = df[df["category"].apply(lambda x: any(c.lower() in cats_lower for c in x) if isinstance(x, list) else False)]
 
     if stores:
         df = df[df["store"].isin(stores)]
@@ -147,23 +131,19 @@ _SORT_COLUMNS = {"title", "author", "price", "rating"}
 def get_books(
     page: int = Query(1, ge=1, description="1-based page number"),
     page_size: int = Query(24, ge=1, le=100),
-    search: Optional[str] = Query(None),
+    search: str | None = Query(None),
     categories: list[str] = Query(default=[]),
     stores: list[str] = Query(default=[]),
-    min_rating: Optional[float] = Query(None, ge=0, le=5),
-    min_price: Optional[float] = Query(None, ge=0),
-    max_price: Optional[float] = Query(None, ge=0),
+    min_rating: float | None = Query(None, ge=0, le=5),
+    min_price: float | None = Query(None, ge=0),
+    max_price: float | None = Query(None, ge=0),
     sort_by: str = Query("title"),
     sort_dir: str = Query("asc"),
 ):
     df = get_df()
-    filtered = _apply_filters(
-        df, search, categories, stores, min_rating, min_price, max_price
-    )
+    filtered = _apply_filters(df, search, categories, stores, min_rating, min_price, max_price)
 
-    col = (
-        sort_by if sort_by in _SORT_COLUMNS and sort_by in filtered.columns else "title"
-    )
+    col = sort_by if sort_by in _SORT_COLUMNS and sort_by in filtered.columns else "title"
     ascending = sort_dir != "desc"
     filtered = filtered.sort_values(col, ascending=ascending, na_position="last")
 
@@ -207,19 +187,11 @@ def get_insights():
     # Books per category (top 10 by count)
     cats_series = df["category"].explode().dropna()
     num_categories = int(cats_series.nunique())
-    bpc = (
-        cats_series.value_counts()
-        .head(10)
-        .rename_axis("category")
-        .reset_index(name="count")
-        .to_dict("records")
-    )
+    bpc = cats_series.value_counts().head(10).rename_axis("category").reset_index(name="count").to_dict("records")
 
     # Top rated: sort descending by raw rating field (weighted score)
     rated = df[df["rating"].notna() & (df["rating"] > 0)].copy()
-    top_rated = rated.nlargest(10, "rating")[
-        ["title", "author", "rating", "goodreads_url"]
-    ].to_dict("records")
+    top_rated = rated.nlargest(10, "rating")[["title", "author", "rating", "goodreads_url"]].to_dict("records")
     top_rated = [_serialize(r) for r in top_rated]
 
     return {
@@ -247,13 +219,7 @@ def get_recommendations(req: RecommendationRequest):
     subj = req.subject.strip()
     if subj and subj.lower() not in ("any", "any available", ""):
         pool = pool[
-            pool["category"].apply(
-                lambda x: (
-                    any(subj.lower() in c.lower() for c in x)
-                    if isinstance(x, list)
-                    else False
-                )
-            )
+            pool["category"].apply(lambda x: any(subj.lower() in c.lower() for c in x) if isinstance(x, list) else False)
         ]
 
     # Filter by store
@@ -296,6 +262,4 @@ def get_recommendations(req: RecommendationRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "book_dashboard.backend.main:app", host="0.0.0.0", port=8000, reload=True
-    )
+    uvicorn.run("book_dashboard.backend.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -50,9 +50,7 @@ class Book:
 
         if self.goodreads_url:
             self.goodreads_url = (
-                self._clean(self.goodreads_url).replace(" ", "%20")
-                if self.goodreads_url is not None
-                else None
+                self._clean(self.goodreads_url).replace(" ", "%20") if self.goodreads_url is not None else None
             )
 
     def _clean(self, value: str | None) -> str | None:

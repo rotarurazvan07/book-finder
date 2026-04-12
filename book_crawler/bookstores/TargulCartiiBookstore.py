@@ -36,9 +36,7 @@ class TargulCartii(BaseBookstore):
         urls = []
         all_cat_urls = [url for urls in self.cats.values() for url in urls]
 
-        logger.info(
-            "Discovering Targul Cartii URLs from %d categories", len(all_cat_urls)
-        )
+        logger.info("Discovering Targul Cartii URLs from %d categories", len(all_cat_urls))
         for base_cat_url in all_cat_urls:
             try:
                 first_page_url = base_cat_url + TARGUL_CARTII_PAGE_QUERY % 1
@@ -122,8 +120,6 @@ class TargulCartii(BaseBookstore):
                     )
                     self.add_book(book)
                 except Exception as e:
-                    logger.debug(
-                        "Skipping malformed Targul Cartii row on %s: %s", url, e
-                    )
+                    logger.debug("Skipping malformed Targul Cartii row on %s: %s", url, e)
         except Exception as e:
             logger.error("Error parsing page %s: %s", url, e)

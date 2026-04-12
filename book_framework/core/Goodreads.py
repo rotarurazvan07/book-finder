@@ -27,17 +27,13 @@ def _clean_text(value) -> str | None:
     return cleaned or None
 
 
-def _parse_isbn_page(
-    html_text: str, search_url: str
-) -> tuple[float | None, str | None]:
+def _parse_isbn_page(html_text: str, search_url: str) -> tuple[float | None, str | None]:
     try:
         if not html_text or NOT_FOUND_INDICATOR in html_text.lower():
             return None, None
         html = BeautifulSoup(html_text, "html.parser")
         rating_val = html.find("div", class_="RatingStatistics__rating").text.strip()
-        ratings_count_text = html.find(
-            "span", {"data-testid": "ratingsCount"}
-        ).text.strip()
+        ratings_count_text = html.find("span", {"data-testid": "ratingsCount"}).text.strip()
         match = re.search(r"\d{1,3}(?:,\d{3})*", ratings_count_text)
         if not match:
             return None, None
@@ -64,16 +60,8 @@ def _parse_search_page(
 
     for book_elem in book_elements:
         try:
-            gr_title = (
-                book_elem.find("a", class_="bookTitle")
-                .find("span", itemprop="name")
-                .get_text()
-            )
-            gr_author = (
-                book_elem.find("a", class_="authorName")
-                .find("span", itemprop="name")
-                .get_text()
-            )
+            gr_title = book_elem.find("a", class_="bookTitle").find("span", itemprop="name").get_text()
+            gr_author = book_elem.find("a", class_="authorName").find("span", itemprop="name").get_text()
         except Exception:
             continue
 
@@ -114,9 +102,7 @@ def _book_queries(book) -> list[tuple[str, str]]:
     if isbn:
         queries.append(("isbn", GOODREADS_SEARCH % quote_plus(str(isbn))))
     if author:
-        queries.append(
-            ("author_title", GOODREADS_SEARCH % quote_plus(f"{author} {title}"))
-        )
+        queries.append(("author_title", GOODREADS_SEARCH % quote_plus(f"{author} {title}")))
     queries.append(("title", GOODREADS_SEARCH % quote_plus(title)))
     return queries
 
@@ -128,9 +114,7 @@ def rateBooks(
 ):
     """Rate books by batch-scraping Goodreads search URLs, then parsing results."""
     if not similarity_config:
-        raise ValueError(
-            "similarity_config is required for rateBooks with scrape_kit SimilarityEngine"
-        )
+        raise ValueError("similarity_config is required for rateBooks with scrape_kit SimilarityEngine")
 
     similarity_engine = SimilarityEngine(similarity_config)
 
@@ -141,7 +125,7 @@ def rateBooks(
 
     for book in books:
         try:
-            rowid = int(getattr(book, "rowid"))
+            rowid = int(book.rowid)
         except Exception:
             logger.warning(
                 "Skipping book without valid rowid: %s",
@@ -164,19 +148,15 @@ def rateBooks(
 
     if all_urls:
         try:
-            scrape(
-                all_urls, callback=_on_html, mode=ScrapeMode.STEALTH, max_concurrency=8
-            )
+            scrape(all_urls, callback=_on_html, mode=ScrapeMode.STEALTH, max_concurrency=8)
         except Exception as e:
             logger.warning("STEALTH scrape had errors: %s", e)
 
     for book in books:
         try:
-            rowid = int(getattr(book, "rowid"))
+            rowid = int(book.rowid)
         except Exception as e:
-            logger.error(
-                "Invalid rowid on book %s: %s", getattr(book, "title", "unknown"), e
-            )
+            logger.error("Invalid rowid on book %s: %s", getattr(book, "title", "unknown"), e)
             continue
 
         title = _clean_text(getattr(book, "title", None))
@@ -197,9 +177,7 @@ def rateBooks(
             if query_kind == "isbn":
                 rating, gr_url = _parse_isbn_page(html_text, url)
             else:
-                rating, gr_url = _parse_search_page(
-                    html_text, title, author, similarity_engine
-                )
+                rating, gr_url = _parse_search_page(html_text, title, author, similarity_engine)
 
             if rating is not None and gr_url:
                 break

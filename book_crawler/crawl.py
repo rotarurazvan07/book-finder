@@ -27,7 +27,7 @@ import sqlite3
 import sys
 import threading
 from collections import defaultdict
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, suppress
 from types import SimpleNamespace
 from urllib.parse import urlparse
 
@@ -99,13 +99,9 @@ def mode_prepare_scrape(runner: str, config_dir: str) -> None:
                     if new_urls:
                         urls.extend(new_urls)
                         break
-                    logger.warning(
-                        f"⚠️  No URLs found for {cls.__name__} (attempt {attempt + 1}/3)"
-                    )
+                    logger.warning(f"⚠️  No URLs found for {cls.__name__} (attempt {attempt + 1}/3)")
                 except Exception as e:
-                    logger.error(
-                        f"❌ Error in {cls.__name__}.get_urls() (attempt {attempt + 1}/3): {e}"
-                    )
+                    logger.error(f"❌ Error in {cls.__name__}.get_urls() (attempt {attempt + 1}/3): {e}")
 
                 if attempt < 2:
                     import time
@@ -115,10 +111,8 @@ def mode_prepare_scrape(runner: str, config_dir: str) -> None:
 
     random.shuffle(urls)
 
-    unique_domains = sorted(list({urlparse(u).netloc for u in urls if u}))
-    logger.info(
-        f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}"
-    )
+    unique_domains = sorted({urlparse(u).netloc for u in urls if u})
+    logger.info(f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}")
 
     max_runners = MAX_CHUNK_SIZE[runner]
     chunk_size = max(20, math.ceil(len(urls) / max_runners))
@@ -164,9 +158,7 @@ def mode_scrape(books_db_path: str, urls_str: str, config_dir: str) -> None:
         books_manager.add_book(book)
 
     for i, (domain_key, group_urls) in enumerate(groups.items()):
-        logger.info(
-            f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)..."
-        )
+        logger.info(f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)...")
         try:
             store = get_store_class(group_urls[0])(_on_book)
             store.get_books(group_urls)
@@ -262,13 +254,9 @@ def mode_rate(books_db_path: str, urls_str: str, config_dir: str) -> None:
             conn.commit()
         logger.info(f"  ✔️ Saved: Row {rowid} -> {rating} stars")
 
-    similarity_config = (
-        SettingsManager(config_dir).get("similarity_config") if config_dir else None
-    )
+    similarity_config = SettingsManager(config_dir).get("similarity_config") if config_dir else None
     if not similarity_config:
-        build_parser().error(
-            "--config_dir with similarity_config.yaml is required for rate"
-        )
+        build_parser().error("--config_dir with similarity_config.yaml is required for rate")
 
     logger.info(f"🚀 Starting rating for {len(books)} books from {urls_str}")
     rateBooks(books, _save_rating_to_chunk, similarity_config=similarity_config)
@@ -306,9 +294,7 @@ def mode_apply_rates(books_db_path: str, chunks_dir: str) -> None:
     main_db_abs = os.path.abspath(books_db_path)
     main_db_filename = os.path.basename(main_db_abs)
 
-    all_candidate_dbs = [
-        f for f in os.listdir(chunks_dir) if f.endswith(".db") and f != main_db_filename
-    ]
+    all_candidate_dbs = [f for f in os.listdir(chunks_dir) if f.endswith(".db") and f != main_db_filename]
     chunk_files: list[str] = []
 
     for cf in all_candidate_dbs:
@@ -317,9 +303,7 @@ def mode_apply_rates(books_db_path: str, chunks_dir: str) -> None:
         try:
             conn = sqlite3.connect(chunk_path)
             cur = conn.cursor()
-            cur.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='rate_results' LIMIT 1"
-            )
+            cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='rate_results' LIMIT 1")
             if cur.fetchone():
                 chunk_files.append(cf)
         except Exception as e:
@@ -358,10 +342,8 @@ def mode_apply_rates(books_db_path: str, chunks_dir: str) -> None:
             logger.info(f"  ✅ Successfully merged {cf}")
         except Exception as e:
             logger.error(f"  ⚠️ Error merging {cf}: {e}")
-            try:
+            with suppress(Exception):
                 cursor.execute("DETACH DATABASE chunk_db")
-            except Exception:
-                pass
 
     main_conn.close()
     logger.info(f"🏁 Final Rated Database saved at: {books_db_path}")
@@ -408,42 +390,30 @@ if __name__ == "__main__":
 
     if args.mode == "prepare-scrape":
         if not args.runners or not args.config_dir:
-            build_parser().error(
-                "--runners and --config_dir are required for prepare-scrape"
-            )
+            build_parser().error("--runners and --config_dir are required for prepare-scrape")
         mode_prepare_scrape(args.runners, args.config_dir)
 
     elif args.mode == "scrape":
         if not args.urls or not args.books_db_path or not args.config_dir:
-            build_parser().error(
-                "--urls, --books_db_path, and --config_dir are required for scrape"
-            )
+            build_parser().error("--urls, --books_db_path, and --config_dir are required for scrape")
         mode_scrape(args.books_db_path, args.urls, args.config_dir)
 
     elif args.mode == "prepare-rate":
         if not args.books_db_path or not args.chunks_dir:
-            build_parser().error(
-                "--books_db_path and --chunks_dir are required for prepare-rate"
-            )
+            build_parser().error("--books_db_path and --chunks_dir are required for prepare-rate")
         mode_prepare_rate(args.books_db_path, args.chunks_dir)
 
     elif args.mode == "rate":
         if not args.urls or not args.books_db_path or not args.config_dir:
-            build_parser().error(
-                "--urls, --books_db_path, and --config_dir are required for rate"
-            )
+            build_parser().error("--urls, --books_db_path, and --config_dir are required for rate")
         mode_rate(args.books_db_path, args.urls, args.config_dir)
 
     elif args.mode == "merge":
         if not args.books_db_path or not args.chunks_dir or not args.config_dir:
-            build_parser().error(
-                "--books_db_path, --chunks_dir, and --config_dir are required for merge"
-            )
+            build_parser().error("--books_db_path, --chunks_dir, and --config_dir are required for merge")
         mode_merge(args.books_db_path, args.chunks_dir, args.config_dir)
 
     elif args.mode == "apply-rates":
         if not args.books_db_path or not args.chunks_dir:
-            build_parser().error(
-                "--books_db_path and --chunks_dir are required for apply-rates"
-            )
+            build_parser().error("--books_db_path and --chunks_dir are required for apply-rates")
         mode_apply_rates(args.books_db_path, args.chunks_dir)

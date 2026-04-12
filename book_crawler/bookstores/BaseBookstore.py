@@ -25,9 +25,7 @@ class BaseBookstore(ABC):
         """Parse a single scraped page. Used as callback for scrape_urls()."""
         raise NotImplementedError()
 
-    def scrape_urls(
-        self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1
-    ) -> None:
+    def scrape_urls(self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1) -> None:
         """Scrape URLs with concurrency, calling callback(url, html) for each page."""
         logger.info(
             "Starting scrape for %d URLs (mode=%s, concurrency=%d)",

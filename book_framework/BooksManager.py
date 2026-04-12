@@ -81,9 +81,7 @@ class BooksManager(BufferedStorageManager):
         df["category"] = df["category"].apply(lambda x: [i for i in x if i])
         return df
 
-    def update_rating_callback(
-        self, rowid: int, rating: float, goodreads_url: str
-    ) -> None:
+    def update_rating_callback(self, rowid: int, rating: float, goodreads_url: str) -> None:
         """Updates rating fields in buffer by rowid-like index."""
         if rating is None or goodreads_url is None:
             return
@@ -143,9 +141,7 @@ class BooksManager(BufferedStorageManager):
               AND TRIM(s.title) != ''
             GROUP BY s.url
         """
-        report = super().merge_databases(
-            input_dir, "books", end_process_query=dedup_query
-        )
+        report = super().merge_databases(input_dir, "books", end_process_query=dedup_query)
 
         if report.errors:
             for err in report.errors:

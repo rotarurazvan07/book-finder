@@ -48,17 +48,13 @@ class AnticariatUnu(BaseBookstore):
                 "https://www.anticariat-unu.ro/matematica-fizica-c40",
                 "https://www.anticariat-unu.ro/carti-tehnice-c29",
             ],
-            BookCategory.BUSINESS: [
-                "https://www.anticariat-unu.ro/stiinte-economice-management-si-marketing-c28"
-            ],
+            BookCategory.BUSINESS: ["https://www.anticariat-unu.ro/stiinte-economice-management-si-marketing-c28"],
             BookCategory.PERSONAL_DEVELOPMENT: [
                 "https://www.anticariat-unu.ro/psihologie-c18",
                 "https://www.anticariat-unu.ro/sociologie-media-jurnalism-advertising-c31",
                 "https://www.anticariat-unu.ro/pedagogie-c32",
             ],
-            BookCategory.KIDS_YA: [
-                "https://www.anticariat-unu.ro/carti-pentru-copii-literatura-populara-benzi-desenate-c45"
-            ],
+            BookCategory.KIDS_YA: ["https://www.anticariat-unu.ro/carti-pentru-copii-literatura-populara-benzi-desenate-c45"],
             BookCategory.HOBBIES: [
                 "https://www.anticariat-unu.ro/gastronomie-c25",
                 "https://www.anticariat-unu.ro/diverse-broderie-tricotaj-fotografie-etc-c37",
@@ -72,9 +68,7 @@ class AnticariatUnu(BaseBookstore):
         urls = []
         all_cat_urls = [url for urls in self.cats.values() for url in urls]
 
-        logger.info(
-            "Discovering Anticariat Unu URLs from %d categories", len(all_cat_urls)
-        )
+        logger.info("Discovering Anticariat Unu URLs from %d categories", len(all_cat_urls))
         for base_cat_url in all_cat_urls:
             try:
                 resp = fetch(
@@ -108,13 +102,7 @@ class AnticariatUnu(BaseBookstore):
 
                     soup_mid = BeautifulSoup(resp_mid, "html.parser")
                     # Count "VANDUT" (Sold) items
-                    sold_count = len(
-                        [
-                            s
-                            for s in soup_mid.select("span.text-danger")
-                            if s.get_text(strip=True) == "VANDUT"
-                        ]
-                    )
+                    sold_count = len([s for s in soup_mid.select("span.text-danger") if s.get_text(strip=True) == "VANDUT"])
 
                     if sold_count < 30:  # If at least one book is available
                         last_valid_page = mid
@@ -191,12 +179,7 @@ class AnticariatUnu(BaseBookstore):
                     if not book_url.startswith("http"):
                         book_url = ANTICARIAT_UNU_BASE_URL.rstrip("/") + book_url
 
-                    price_text = (
-                        price_tag.get_text()
-                        .replace("Lei", "")
-                        .replace(",", ".")
-                        .strip()
-                    )
+                    price_text = price_tag.get_text().replace("Lei", "").replace(",", ".").strip()
                     price = float(price_text)
 
                     book = Book(
@@ -208,8 +191,6 @@ class AnticariatUnu(BaseBookstore):
                     )
                     self.add_book(book)
                 except Exception as e:
-                    logger.debug(
-                        "Skipping malformed Anticariat Unu row on %s: %s", url, e
-                    )
+                    logger.debug("Skipping malformed Anticariat Unu row on %s: %s", url, e)
         except Exception as e:
             logger.error("Error parsing page %s: %s", url, e)
