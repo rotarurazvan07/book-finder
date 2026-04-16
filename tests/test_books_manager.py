@@ -1,15 +1,16 @@
 """Comprehensive unit tests for BooksManager."""
+
 import sqlite3
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
 from book_framework.BooksManager import BooksManager
 from book_framework.core.Book import Book, BookCategory, Offer
-
+import contextlib
 
 # ==================== 1. __init__ Tests ====================
+
 
 class TestInit:
     """Tests for BooksManager initialization."""
@@ -17,11 +18,12 @@ class TestInit:
     def test_init_with_valid_path(self, temp_db_path: str):
         """Test initialization with a valid database path."""
         with patch("book_framework.BooksManager.BufferedStorageManager.__init__") as mock_parent_init:
-            manager = BooksManager(temp_db_path)
+            BooksManager(temp_db_path)
             mock_parent_init.assert_called_once_with(temp_db_path, "books")
 
 
 # ==================== 2. _create_tables Tests ====================
+
 
 class TestCreateTables:
     """Tests for database schema creation."""
@@ -34,17 +36,11 @@ class TestCreateTables:
         books_manager._create_tables()
 
         # Verify CREATE TABLE executed
-        create_calls = [
-            c for c in books_manager.conn.execute.call_args_list
-            if "CREATE TABLE" in str(c)
-        ]
+        create_calls = [c for c in books_manager.conn.execute.call_args_list if "CREATE TABLE" in str(c)]
         assert len(create_calls) == 1
         create_sql = str(create_calls[0][0][0])
 
-        expected_columns = [
-            "isbn", "title", "author", "category",
-            "rating", "goodreads_url", "store", "url", "price"
-        ]
+        expected_columns = ["isbn", "title", "author", "category", "rating", "goodreads_url", "store", "url", "price"]
         for col in expected_columns:
             assert col in create_sql
 
@@ -56,10 +52,7 @@ class TestCreateTables:
         books_manager._create_tables()
 
         # Verify CREATE INDEX executed
-        index_calls = [
-            c for c in books_manager.conn.execute.call_args_list
-            if "CREATE INDEX" in str(c)
-        ]
+        index_calls = [c for c in books_manager.conn.execute.call_args_list if "CREATE INDEX" in str(c)]
         assert len(index_calls) == 1
         index_sql = str(index_calls[0][0][0])
         assert "idx_title" in index_sql
@@ -75,14 +68,12 @@ class TestCreateTables:
         books_manager._create_tables()
 
         # Should have executed CREATE TABLE IF NOT EXISTS twice
-        create_calls = [
-            c for c in books_manager.conn.execute.call_args_list
-            if "CREATE TABLE" in str(c)
-        ]
+        create_calls = [c for c in books_manager.conn.execute.call_args_list if "CREATE TABLE" in str(c)]
         assert len(create_calls) == 2
 
 
 # ==================== 3. add_book Tests ====================
+
 
 class TestAddBook:
     """Tests for adding books to the buffer."""
@@ -129,7 +120,7 @@ class TestAddBook:
             title="",
             author="Author",
             category=BookCategory.LITERATURE,
-            offers=[Offer(store="Store", url="http://store.com", price=10.0)]
+            offers=[Offer(store="Store", url="http://store.com", price=10.0)],
         )
         books_manager.ensure_buffer = MagicMock()
         books_manager.insert = MagicMock()
@@ -146,7 +137,7 @@ class TestAddBook:
             title="   \t\n  ",
             author="Author",
             category=BookCategory.LITERATURE,
-            offers=[Offer(store="Store", url="http://store.com", price=10.0)]
+            offers=[Offer(store="Store", url="http://store.com", price=10.0)],
         )
         books_manager.ensure_buffer = MagicMock()
         books_manager.insert = MagicMock()
@@ -165,7 +156,7 @@ class TestAddBook:
             title=None,
             author="Author",
             category=BookCategory.LITERATURE,
-            offers=[Offer(store="Store", url="http://store.com", price=10.0)]
+            offers=[Offer(store="Store", url="http://store.com", price=10.0)],
         )
         books_manager.ensure_buffer = MagicMock()
         books_manager.insert = MagicMock()
@@ -195,7 +186,7 @@ class TestAddBook:
             author=None,
             isbn=None,
             category=BookCategory.LITERATURE,
-            offers=[Offer(store="Store", url="http://store.com", price=10.0)]
+            offers=[Offer(store="Store", url="http://store.com", price=10.0)],
         )
         books_manager.ensure_buffer = MagicMock()
         books_manager.insert = MagicMock()
@@ -215,7 +206,7 @@ class TestAddBook:
             category=BookCategory.LITERATURE,
             rating=None,
             goodreads_url=None,
-            offers=[Offer(store="Store", url="http://store.com", price=10.0)]
+            offers=[Offer(store="Store", url="http://store.com", price=10.0)],
         )
         books_manager.ensure_buffer = MagicMock()
         books_manager.insert = MagicMock()
@@ -232,9 +223,7 @@ class TestAddBook:
             title="Test",
             author="Author",
             category=BookCategory.LITERATURE,
-            offers=[
-                Offer(store="Store", url="http://store.com/book with spaces", price=10.0)
-            ]
+            offers=[Offer(store="Store", url="http://store.com/book with spaces", price=10.0)],
         )
         books_manager.ensure_buffer = MagicMock()
         books_manager.insert = MagicMock()
@@ -246,6 +235,7 @@ class TestAddBook:
 
 
 # ==================== 4. fetch_all_as_dataframe Tests ====================
+
 
 class TestFetchAllAsDataFrame:
     """Tests for fetching data as DataFrame."""
@@ -265,17 +255,21 @@ class TestFetchAllAsDataFrame:
 
     def test_single_book_single_offer(self, books_manager: BooksManager):
         """Test fetch with one book returns correct rowid and category as list."""
-        buffer_df = pd.DataFrame([{
-            "isbn": "123",
-            "title": "Test Book",
-            "author": "Author",
-            "category": "Literature",
-            "rating": 4.5,
-            "goodreads_url": "https://gr.com/123",
-            "store": "Store1",
-            "url": "http://store1.com/book",
-            "price": 10.0
-        }])
+        buffer_df = pd.DataFrame(
+            [
+                {
+                    "isbn": "123",
+                    "title": "Test Book",
+                    "author": "Author",
+                    "category": "Literature",
+                    "rating": 4.5,
+                    "goodreads_url": "https://gr.com/123",
+                    "store": "Store1",
+                    "url": "http://store1.com/book",
+                    "price": 10.0,
+                }
+            ]
+        )
         books_manager.ensure_buffer = MagicMock(return_value=buffer_df.copy())
         books_manager.reopen_if_changed = MagicMock()
 
@@ -287,11 +281,13 @@ class TestFetchAllAsDataFrame:
 
     def test_multiple_books_sequential_rowid(self, books_manager: BooksManager):
         """Test that rowid is sequential starting from 1."""
-        buffer_df = pd.DataFrame([
-            {"title": "Book1", "category": "Literature", "price": 10.0},
-            {"title": "Book2", "category": "Science", "price": 15.0},
-            {"title": "Book3", "category": "Arts", "price": 20.0}
-        ])
+        buffer_df = pd.DataFrame(
+            [
+                {"title": "Book1", "category": "Literature", "price": 10.0},
+                {"title": "Book2", "category": "Science", "price": 15.0},
+                {"title": "Book3", "category": "Arts", "price": 20.0},
+            ]
+        )
         books_manager.ensure_buffer = MagicMock(return_value=buffer_df.copy())
         books_manager.reopen_if_changed = MagicMock()
 
@@ -301,11 +297,7 @@ class TestFetchAllAsDataFrame:
 
     def test_category_splitting_comma_separated(self, books_manager: BooksManager):
         """Test category splitting with comma-separated values."""
-        buffer_df = pd.DataFrame([{
-            "title": "Book",
-            "category": "Literature,Arts,History",
-            "price": 10.0
-        }])
+        buffer_df = pd.DataFrame([{"title": "Book", "category": "Literature,Arts,History", "price": 10.0}])
         books_manager.ensure_buffer = MagicMock(return_value=buffer_df.copy())
         books_manager.reopen_if_changed = MagicMock()
 
@@ -315,11 +307,7 @@ class TestFetchAllAsDataFrame:
 
     def test_category_splitting_with_whitespace(self, books_manager: BooksManager):
         """Test category splitting handles whitespace correctly."""
-        buffer_df = pd.DataFrame([{
-            "title": "Book",
-            "category": " Literature , Arts , History ",
-            "price": 10.0
-        }])
+        buffer_df = pd.DataFrame([{"title": "Book", "category": " Literature , Arts , History ", "price": 10.0}])
         books_manager.ensure_buffer = MagicMock(return_value=buffer_df.copy())
         books_manager.reopen_if_changed = MagicMock()
 
@@ -339,11 +327,7 @@ class TestFetchAllAsDataFrame:
 
     def test_category_splitting_empty_string(self, books_manager: BooksManager):
         """Test category splitting with empty string returns empty list."""
-        buffer_df = pd.DataFrame([{
-            "title": "Book",
-            "category": "",
-            "price": 10.0
-        }])
+        buffer_df = pd.DataFrame([{"title": "Book", "category": "", "price": 10.0}])
         books_manager.ensure_buffer = MagicMock(return_value=buffer_df.copy())
         books_manager.reopen_if_changed = MagicMock()
 
@@ -353,11 +337,7 @@ class TestFetchAllAsDataFrame:
 
     def test_category_splitting_none(self, books_manager: BooksManager):
         """Test category splitting with None returns empty list."""
-        buffer_df = pd.DataFrame([{
-            "title": "Book",
-            "category": None,
-            "price": 10.0
-        }])
+        buffer_df = pd.DataFrame([{"title": "Book", "category": None, "price": 10.0}])
         books_manager.ensure_buffer = MagicMock(return_value=buffer_df.copy())
         books_manager.reopen_if_changed = MagicMock()
 
@@ -390,6 +370,7 @@ class TestFetchAllAsDataFrame:
 
 
 # ==================== 5. update_rating_callback Tests ====================
+
 
 class TestUpdateRatingCallback:
     """Tests for updating ratings via callback."""
@@ -457,6 +438,7 @@ class TestUpdateRatingCallback:
 
 # ==================== 6. reset_db Tests ====================
 
+
 class TestResetDb:
     """Tests for database reset."""
 
@@ -470,6 +452,7 @@ class TestResetDb:
 
 
 # ==================== 7. merge_databases Tests ====================
+
 
 class TestMergeDatabases:
     """Tests for merging chunk databases."""
@@ -527,6 +510,7 @@ class TestMergeDatabases:
 
         # Cleanup
         import os
+
         for chunk_db in [chunk1_db, chunk2_db]:
             if os.path.exists(chunk_db):
                 os.remove(chunk_db)
@@ -579,6 +563,7 @@ class TestMergeDatabases:
             manager.merge_databases(input_dir=temp_db_path.replace("test.db", ""), table_name="books", end_process_query="")
 
         import os
+
         for chunk_db in [chunk1_db, chunk2_db]:
             if os.path.exists(chunk_db):
                 os.remove(chunk_db)
@@ -615,6 +600,7 @@ class TestMergeDatabases:
             manager.merge_databases(input_dir=temp_db_path.replace("test.db", ""), table_name="books", end_process_query="")
 
         import os
+
         if os.path.exists(chunk_db):
             os.remove(chunk_db)
 
@@ -650,6 +636,7 @@ class TestMergeDatabases:
             manager.merge_databases(input_dir=temp_db_path.replace("test.db", ""), table_name="books", end_process_query="")
 
         import os
+
         if os.path.exists(chunk_db):
             os.remove(chunk_db)
 
@@ -685,6 +672,7 @@ class TestMergeDatabases:
             manager.merge_databases(input_dir=temp_db_path.replace("test.db", ""), table_name="books", end_process_query="")
 
         import os
+
         if os.path.exists(chunk_db):
             os.remove(chunk_db)
 
@@ -696,7 +684,7 @@ class TestMergeDatabases:
 
         # Mock parent merge to return errors
         report = MagicMock(processed_chunks=1, skipped_chunks=0, errors=["Test error"])
-        with patch.object(books_manager, "merge_databases", return_value=report) as mock_parent_merge:
+        with patch.object(books_manager, "merge_databases", return_value=report):
             # We need to call the actual merge_databases method, not the mock
             # So we'll directly test the override method's error handling
             pass
@@ -712,11 +700,9 @@ class TestMergeDatabases:
 
         report = MagicMock(processed_chunks=5, skipped_chunks=2, errors=[])
 
-        with patch.object(type(books_manager).__bases__[0], 'merge_databases', return_value=report):
-            try:
+        with patch.object(type(books_manager).__bases__[0], "merge_databases", return_value=report):
+            with contextlib.suppress(BaseException):
                 books_manager.merge_databases("/fake/dir")
-            except:
-                pass
 
         # Check if log message appears
         # This would need more careful mocking to test properly
